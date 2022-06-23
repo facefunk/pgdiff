@@ -50,25 +50,24 @@ pgdiff -U dbuser -H localhost -D refDB  -O "sslmode=disable" -S public \
 
 ### options
 
-options           | explanation 
-----------------: | ------------------------------------
-  -V, --version   | prints the version of pgdiff being used
-  -?, --help      | displays helpful usage information
-  -U, --user1     | first postgres user
-  -u, --user2     | second postgres user
-  -W, --password1 | first db password
-  -w, --password2 | second db password
-  -H, --host1     | first db host.  default is localhost
-  -h, --host2     | second db host. default is localhost
-  -P, --port1     | first db port number.  default is 5432
-  -p, --port2     | second db port number. default is 5432
-  -D, --dbname1   | first db name
-  -d, --dbname2   | second db name
-  -S, --schema1   | first schema name.  default is * (all non-system schemas)
-  -s, --schema2   | second schema name. default is * (all non-system schemas)
-  -O, --option1   | first db options. example: sslmode=disable
-  -o, --option2   | second db options. example: sslmode=disable
-
+|         options | explanation                                               |
+|----------------:|-----------------------------------------------------------|
+|   -V, --version | prints the version of pgdiff being used                   |
+|      -?, --help | displays helpful usage information                        |
+|     -U, --user1 | first postgres user                                       |
+|     -u, --user2 | second postgres user                                      |
+| -W, --password1 | first db password                                         |
+| -w, --password2 | second db password                                        |
+|     -H, --host1 | first db host.  default is localhost                      |
+|     -h, --host2 | second db host. default is localhost                      |
+|     -P, --port1 | first db port number.  default is 5432                    |
+|     -p, --port2 | second db port number. default is 5432                    |
+|   -D, --dbname1 | first db name                                             |
+|   -d, --dbname2 | second db name                                            |
+|   -S, --schema1 | first schema name.  default is * (all non-system schemas) |
+|   -s, --schema2 | second schema name. default is * (all non-system schemas) |
+|   -O, --option1 | first db options. example: sslmode=disable                |
+|   -o, --option2 | second db options. example: sslmode=disable               |
 
 ### getting started on linux and osx
 
