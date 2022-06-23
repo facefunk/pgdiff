@@ -4,17 +4,18 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
 import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 	"sort"
 	"strings"
 	"text/template"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
 )
 
 var (
@@ -97,9 +98,10 @@ func (slice GrantAttributeRows) Swap(i, j int) {
 // GrantAttributeSchema holds a slice of rows from one of the databases as well as
 // a reference to the current row of data we're viewing.
 type GrantAttributeSchema struct {
-	rows   GrantAttributeRows
-	rowNum int
-	done   bool
+	rows     GrantAttributeRows
+	rowNum   int
+	done     bool
+	dbSchema string
 }
 
 // get returns the value from the current row for the given key
@@ -148,8 +150,14 @@ func (c *GrantAttributeSchema) Compare(obj interface{}) int {
 }
 
 // Add prints SQL to add the grant
-func (c *GrantAttributeSchema) Add() {
-	schema := dbInfo2.DbSchema
+func (c *GrantAttributeSchema) Add(obj interface{}) {
+	c2, ok := obj.(*GrantAttributeSchema)
+	if !ok {
+		fmt.Println("Error!!!, Add needs a GrantAttributeSchema instance", c2)
+		return
+	}
+
+	schema := c2.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
@@ -207,8 +215,8 @@ func (c *GrantAttributeSchema) Change(obj interface{}) {
 // Functions
 // ==================================
 
-// compareGrantAttributes outputs SQL to make the granted permissions match between DBs or schemas
-func compareGrantAttributes(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareGrantAttributes outputs SQL to make the granted permissions match between DBs or schemas
+func CompareGrantAttributes(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 
 	buf1 := new(bytes.Buffer)
 	grantAttributeSqlTemplate.Execute(buf1, dbInfo1)
@@ -225,7 +233,7 @@ func compareGrantAttributes(conn1 *sql.DB, conn2 *sql.DB) {
 	}
 	sort.Sort(rows1)
 	//for _, row := range rows1 {
-		//fmt.Printf("--1b compare:%s, col:%s, colAcl:%s\n", row["compare_name"], row["attribute_name"], row["attribute_acl"])
+	//fmt.Printf("--1b compare:%s, col:%s, colAcl:%s\n", row["compare_name"], row["attribute_name"], row["attribute_acl"])
 	//}
 
 	rows2 := make(GrantAttributeRows, 0)
@@ -234,12 +242,12 @@ func compareGrantAttributes(conn1 *sql.DB, conn2 *sql.DB) {
 	}
 	sort.Sort(rows2)
 	//for _, row := range rows2 {
-		//fmt.Printf("--2b compare:%s, col:%s, colAcl:%s\n", row["compare_name"], row["attribute_name"], row["attribute_acl"])
+	//fmt.Printf("--2b compare:%s, col:%s, colAcl:%s\n", row["compare_name"], row["attribute_name"], row["attribute_acl"])
 	//}
 
 	// We have to explicitly type this as Schema here for some unknown reason
-	var schema1 Schema = &GrantAttributeSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &GrantAttributeSchema{rows: rows2, rowNum: -1}
+	var schema1 Schema = &GrantAttributeSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo1.DbSchema}
+	var schema2 Schema = &GrantAttributeSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	doDiff(schema1, schema2)
 }

@@ -4,16 +4,17 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
 import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 	"sort"
 	"text/template"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
 )
 
 var (
@@ -118,7 +119,7 @@ func (c *OwnerSchema) Compare(obj interface{}) int {
 }
 
 // Add generates SQL to add the table/view owner
-func (c OwnerSchema) Add() {
+func (c OwnerSchema) Add(obj interface{}) {
 	fmt.Printf("-- Notice!, db2 has no %s named %s.  First, run pgdiff with the %s option.\n", c.get("type"), c.get("relationship_name"), c.get("type"))
 }
 
@@ -139,8 +140,8 @@ func (c OwnerSchema) Change(obj interface{}) {
 	}
 }
 
-// compareOwners compares the ownership of tables, sequences, and views between two databases or schemas
-func compareOwners(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareOwners compares the ownership of tables, sequences, and views between two databases or schemas
+func CompareOwners(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 
 	buf1 := new(bytes.Buffer)
 	ownerSqlTemplate.Execute(buf1, dbInfo1)

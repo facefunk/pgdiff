@@ -4,16 +4,17 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
 import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 	"sort"
 	"text/template"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
 )
 
 var (
@@ -71,9 +72,10 @@ func (slice SequenceRows) Swap(i, j int) {
 //
 // SequenceSchema implements the Schema interface defined in pgdiff.go
 type SequenceSchema struct {
-	rows   SequenceRows
-	rowNum int
-	done   bool
+	rows     SequenceRows
+	rowNum   int
+	done     bool
+	dbSchema string
 }
 
 // get returns the value from the current row for the given key
@@ -106,8 +108,14 @@ func (c *SequenceSchema) Compare(obj interface{}) int {
 }
 
 // Add returns SQL to add the sequence
-func (c SequenceSchema) Add() {
-	schema := dbInfo2.DbSchema
+func (c *SequenceSchema) Add(obj interface{}) {
+	c2, ok := obj.(*SequenceSchema)
+	if !ok {
+		fmt.Println("Error!!!, Add needs a SequenceSchema instance", c2)
+		return
+	}
+
+	schema := c2.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
@@ -128,8 +136,8 @@ func (c SequenceSchema) Change(obj interface{}) {
 	// Don't know of anything helpful we should do here
 }
 
-// compareSequences outputs SQL to make the sequences match between DBs or schemas
-func compareSequences(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareSequences outputs SQL to make the sequences match between DBs or schemas
+func CompareSequences(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 
 	buf1 := new(bytes.Buffer)
 	sequenceSqlTemplate.Execute(buf1, dbInfo1)
@@ -153,8 +161,8 @@ func compareSequences(conn1 *sql.DB, conn2 *sql.DB) {
 	sort.Sort(rows2)
 
 	// We have to explicitly type this as Schema here for some unknown (to me) reason
-	var schema1 Schema = &SequenceSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &SequenceSchema{rows: rows2, rowNum: -1}
+	var schema1 Schema = &SequenceSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo1.DbSchema}
+	var schema2 Schema = &SequenceSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	// Compare the sequences
 	doDiff(schema1, schema2)

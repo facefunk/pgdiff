@@ -4,16 +4,17 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
 import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 	"sort"
 	"text/template"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
 )
 
 var (
@@ -74,9 +75,10 @@ func (slice ForeignKeyRows) Swap(i, j int) {
 // ForeignKeySchema holds a slice of rows from one of the databases as well as
 // a reference to the current row of data we're viewing.
 type ForeignKeySchema struct {
-	rows   ForeignKeyRows
-	rowNum int
-	done   bool
+	rows     ForeignKeyRows
+	rowNum   int
+	done     bool
+	dbSchema string
 }
 
 // get returns the value from the current row for the given key
@@ -123,8 +125,13 @@ func (c *ForeignKeySchema) Compare(obj interface{}) int {
 }
 
 // Add returns SQL to add the foreign key
-func (c *ForeignKeySchema) Add() {
-	schema := dbInfo2.DbSchema
+func (c *ForeignKeySchema) Add(obj interface{}) {
+	c2, ok := obj.(*ForeignKeySchema)
+	if !ok {
+		fmt.Println("Error!!!, Add needs a ForeignKeySchema instance", c2)
+		return
+	}
+	schema := c2.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
@@ -148,7 +155,7 @@ func (c *ForeignKeySchema) Change(obj interface{}) {
 /*
  * Compare the foreign keys in the two databases.
  */
-func compareForeignKeys(conn1 *sql.DB, conn2 *sql.DB) {
+func CompareForeignKeys(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 
 	buf1 := new(bytes.Buffer)
 	foreignKeySqlTemplate.Execute(buf1, dbInfo1)
@@ -172,8 +179,8 @@ func compareForeignKeys(conn1 *sql.DB, conn2 *sql.DB) {
 	sort.Sort(rows2)
 
 	// We have to explicitly type this as Schema here for some unknown reason
-	var schema1 Schema = &ForeignKeySchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &ForeignKeySchema{rows: rows2, rowNum: -1}
+	var schema1 Schema = &ForeignKeySchema{rows: rows1, rowNum: -1, dbSchema: dbInfo1.DbSchema}
+	var schema2 Schema = &ForeignKeySchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	// Compare the foreign keys
 	doDiff(schema1, schema2)

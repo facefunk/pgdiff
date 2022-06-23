@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
 import (
 	"database/sql"
@@ -75,7 +75,7 @@ func (c *MatViewSchema) Compare(obj interface{}) int {
 }
 
 // Add returns SQL to create the matview
-func (c MatViewSchema) Add() {
+func (c MatViewSchema) Add(obj interface{}) {
 	fmt.Printf("CREATE MATERIALIZED VIEW %s AS %s \n\n%s \n\n", c.get("matviewname"), c.get("definition"), c.get("indexdef"))
 }
 
@@ -96,8 +96,8 @@ func (c MatViewSchema) Change(obj interface{}) {
 	}
 }
 
-// compareMatViews outputs SQL to make the matviews match between DBs
-func compareMatViews(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareMatViews outputs SQL to make the matviews match between DBs
+func CompareMatViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 	sql := `
 	WITH matviews as ( SELECT schemaname || '.' || matviewname AS matviewname,
 	definition

@@ -1,2 +1,4 @@
 pgdiff
 vendor/*
+*.tar.gz
+*.zip

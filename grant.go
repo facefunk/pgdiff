@@ -6,12 +6,14 @@
 // grant.go provides functions and structures that are common to grant-relationships and grant-attributes
 //
 
-package main
+package pgdiff
 
-import "sort"
-import "fmt"
-import "strings"
-import "regexp"
+import (
+	"fmt"
+	"regexp"
+	"sort"
+	"strings"
+)
 
 var aclRegex = regexp.MustCompile(`([a-zA-Z0-9]+)*=([rwadDxtXUCcT]+)/([a-zA-Z0-9]+)$`)
 

@@ -34,7 +34,7 @@ if [[ -f $LINUX_README ]]; then
     echo $workdir
     mkdir -p $workdir
     # Build the executable
-    GOOS=linux GOARCH=386 go build -o "$workdir/$APPNAME"
+    GOOS=linux GOARCH=386 go build -o "$workdir/$APPNAME" main/pgdiff.go
     # Download pgrun to the temp directory 
     wget -O "$workdir/pgrun" "https://github.com/joncrlsn/pgrun/raw/master/bin-linux/pgrun"
     # Copy the bash runtime script to the temp directory
@@ -59,7 +59,7 @@ if [[ -f $OSX_README ]]; then
     echo $workdir
     mkdir -p $workdir
     # Build the executable
-    GOOS=darwin GOARCH=386 go build -o "$workdir/$APPNAME"
+    GOOS=darwin GOARCH=386 go build -o "$workdir/$APPNAME" main/pgdiff.go
     # Download pgrun to the work directory 
     wget -O "$workdir/pgrun" "https://github.com/joncrlsn/pgrun/raw/master/bin-osx/pgrun"
     # Copy the bash runtime script to the temp directory
@@ -83,7 +83,7 @@ if [[ -f $WIN_README ]]; then
     workdir="$tempdir/$APPNAME"
     echo $workdir
     mkdir -p $workdir
-    GOOS=windows GOARCH=386 go build -o "${workdir}/${APPNAME}.exe"
+    GOOS=windows GOARCH=386 go build -o "${workdir}/${APPNAME}.exe" main/pgdiff.go
     # Download pgrun to the work directory 
     # Copy the bash runtime script to the temp directory
     cp "${SCRIPT_DIR}/${WIN_README}" "$workdir/README.md"

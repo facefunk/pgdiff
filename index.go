@@ -4,17 +4,18 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
 import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 	"sort"
 	"strings"
 	"text/template"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
 )
 
 var (
@@ -81,9 +82,10 @@ func (slice IndexRows) Swap(i, j int) {
 // IndexSchema holds a slice of rows from one of the databases as well as
 // a reference to the current row of data we're viewing.
 type IndexSchema struct {
-	rows   IndexRows
-	rowNum int
-	done   bool
+	rows     IndexRows
+	rowNum   int
+	done     bool
+	dbSchema string
 }
 
 // get returns the value from the current row for the given key
@@ -129,8 +131,12 @@ func (c *IndexSchema) Compare(obj interface{}) int {
 }
 
 // Add prints SQL to add the index
-func (c *IndexSchema) Add() {
-	schema := dbInfo2.DbSchema
+func (c *IndexSchema) Add(obj interface{}) {
+	c2, ok := obj.(*IndexSchema)
+	if !ok {
+		fmt.Println("Error!!!, Add needs a IndexSchema instance", c2)
+	}
+	schema := c2.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
@@ -142,13 +148,13 @@ func (c *IndexSchema) Add() {
 	}
 
 	// If we are comparing two different schemas against each other, we need to do some
-	// modification of the first index_def so we create the index in the write schema
+	// modification of the first index_def so we create the index in the write dbSchema
 	indexDef := c.get("index_def")
-	if dbInfo1.DbSchema != dbInfo2.DbSchema {
+	if c.dbSchema != c2.dbSchema {
 		indexDef = strings.Replace(
 			indexDef,
 			fmt.Sprintf(" %s.%s ", c.get("schema_name"), c.get("table_name")),
-			fmt.Sprintf(" %s.%s ", dbInfo2.DbSchema, c.get("table_name")),
+			fmt.Sprintf(" %s.%s ", c2.dbSchema, c.get("table_name")),
 			-1)
 	}
 
@@ -237,7 +243,7 @@ func (c *IndexSchema) Change(obj interface{}) {
 
 	// If we are comparing two different schemas against each other, we need to do
 	// some modification of the first index_def so it looks more like the second
-	if dbInfo1.DbSchema != dbInfo2.DbSchema {
+	if c.dbSchema != c2.dbSchema {
 		indexDef1 = strings.Replace(
 			indexDef1,
 			fmt.Sprintf(" %s.%s ", c.get("schema_name"), c.get("table_name")),
@@ -258,14 +264,14 @@ func (c *IndexSchema) Change(obj interface{}) {
 			c.Drop()
 
 			// Recreate the index (and a constraint if specified)
-			c.Add()
+			c.Add(obj)
 		}
 	}
 
 }
 
-// compareIndexes outputs Sql to make the indexes match between to DBs or schemas
-func compareIndexes(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareIndexes outputs Sql to make the indexes match between to DBs or schemas
+func CompareIndexes(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 
 	buf1 := new(bytes.Buffer)
 	indexSqlTemplate.Execute(buf1, dbInfo1)
@@ -289,8 +295,8 @@ func compareIndexes(conn1 *sql.DB, conn2 *sql.DB) {
 	sort.Sort(rows2)
 
 	// We have to explicitly type this as Schema here for some unknown reason
-	var schema1 Schema = &IndexSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &IndexSchema{rows: rows2, rowNum: -1}
+	var schema1 Schema = &IndexSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo1.DbSchema}
+	var schema2 Schema = &IndexSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	// Compare the indexes
 	doDiff(schema1, schema2)

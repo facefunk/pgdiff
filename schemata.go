@@ -4,13 +4,16 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
-import "fmt"
-import "sort"
-import "database/sql"
-import "github.com/joncrlsn/pgutil"
-import "github.com/joncrlsn/misc"
+import (
+	"database/sql"
+	"fmt"
+	"sort"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
+)
 
 // ==================================
 // SchemataRows definition
@@ -31,7 +34,7 @@ func (slice SchemataRows) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-// SchemataSchema holds a channel streaming schema meta information from one of the databases as well as
+// SchemataSchema holds a channel streaming dbSchema meta information from one of the databases as well as
 // a reference to the current row of data we're viewing.
 //
 // SchemataSchema implements the Schema interface defined in pgdiff.go
@@ -72,7 +75,7 @@ func (c *SchemataSchema) Compare(obj interface{}) int {
 }
 
 // Add returns SQL to add the schemata
-func (c SchemataSchema) Add() {
+func (c SchemataSchema) Add(obj interface{}) {
 	// CREATE SCHEMA schema_name [ AUTHORIZATION user_name
 	fmt.Printf("CREATE SCHEMA %s AUTHORIZATION %s;", c.get("schema_name"), c.get("schema_owner"))
 	fmt.Println()
@@ -84,7 +87,7 @@ func (c SchemataSchema) Drop() {
 	fmt.Printf("DROP SCHEMA IF EXISTS %s;\n", c.get("schema_name"))
 }
 
-// Change handles the case where the schema name matches, but the details do not
+// Change handles the case where the dbSchema name matches, but the details do not
 func (c SchemataSchema) Change(obj interface{}) {
 	c2, ok := obj.(*SchemataSchema)
 	if !ok {
@@ -93,8 +96,8 @@ func (c SchemataSchema) Change(obj interface{}) {
 	// There's nothing we need to do here
 }
 
-// compareSchematas outputs SQL to make the schema names match between DBs
-func compareSchematas(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareSchematas outputs SQL to make the dbSchema names match between DBs
+func CompareSchematas(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 
 	// if we are comparing two schemas against each other, then
 	// we won't compare to ensure they are created, although maybe we should.

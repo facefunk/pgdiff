@@ -4,16 +4,17 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
 import (
 	"database/sql"
 	"fmt"
-	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
 )
 
 var curlyBracketRegex = regexp.MustCompile("[{}]")
@@ -107,7 +108,7 @@ where option can be:
 */
 
 // Add generates SQL to add the constraint/index
-func (c RoleSchema) Add() {
+func (c RoleSchema) Add(obj interface{}) {
 
 	// We don't care about efficiency here so we just concat strings
 	options := " WITH PASSWORD 'changeme'"
@@ -268,7 +269,7 @@ func (c RoleSchema) Change(obj interface{}) {
 /*
  * Compare the roles between two databases or schemas
  */
-func compareRoles(conn1 *sql.DB, conn2 *sql.DB) {
+func CompareRoles(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 	sql := `
 SELECT r.rolname
     , r.rolsuper

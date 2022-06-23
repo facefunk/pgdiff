@@ -4,13 +4,16 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
-import "fmt"
-import "sort"
-import "database/sql"
-import "github.com/joncrlsn/pgutil"
-import "github.com/joncrlsn/misc"
+import (
+	"database/sql"
+	"fmt"
+	"sort"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
+)
 
 // ==================================
 // ViewRows definition
@@ -72,7 +75,7 @@ func (c *ViewSchema) Compare(obj interface{}) int {
 }
 
 // Add returns SQL to create the view
-func (c ViewSchema) Add() {
+func (c ViewSchema) Add(obj interface{}) {
 	fmt.Printf("CREATE VIEW %s AS %s \n\n", c.get("viewname"), c.get("definition"))
 }
 
@@ -93,8 +96,8 @@ func (c ViewSchema) Change(obj interface{}) {
 	}
 }
 
-// compareViews outputs SQL to make the views match between DBs
-func compareViews(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareViews outputs SQL to make the views match between DBs
+func CompareViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 	sql := `
 	SELECT schemaname || '.' || viewname AS viewname
 		, definition 

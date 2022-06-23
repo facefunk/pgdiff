@@ -4,18 +4,19 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
 import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 	"sort"
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
 )
 
 var (
@@ -115,9 +116,10 @@ func (slice ColumnRows) Swap(i, j int) {
 // ColumnSchema holds a slice of rows from one of the databases as well as
 // a reference to the current row of data we're viewing.
 type ColumnSchema struct {
-	rows   ColumnRows
-	rowNum int
-	done   bool
+	rows     ColumnRows
+	rowNum   int
+	done     bool
+	dbSchema string
 }
 
 // get returns the value from the current row for the given key
@@ -149,9 +151,13 @@ func (c *ColumnSchema) Compare(obj interface{}) int {
 }
 
 // Add prints SQL to add the column
-func (c *ColumnSchema) Add() {
-
-	schema := dbInfo2.DbSchema
+func (c *ColumnSchema) Add(obj interface{}) {
+	c2, ok := obj.(*ColumnSchema)
+	if !ok {
+		fmt.Println("Error!!!, Add needs a ColumnSchema instance", c2)
+		return
+	}
+	schema := c2.dbSchema
 	if schema == "*" {
 		schema = c.get("table_schema")
 	}
@@ -172,12 +178,12 @@ func (c *ColumnSchema) Add() {
 	} else {
 		dataType := c.get("data_type")
 		//if c.get("data_type") == "ARRAY" {
-			//fmt.Println("-- Note that adding of array data types are not yet generated properly.")
+		//fmt.Println("-- Note that adding of array data types are not yet generated properly.")
 		//}
 		if dataType == "ARRAY" {
-			dataType = c.get("array_type")+"[]"
+			dataType = c.get("array_type") + "[]"
 		}
-		//fmt.Printf("ALTER TABLE %s.%s ADD COLUMN %s %s", schema, c.get("table_name"), c.get("column_name"), c.get("data_type"))
+		//fmt.Printf("ALTER TABLE %s.%s ADD COLUMN %s %s", dbSchema, c.get("table_name"), c.get("column_name"), c.get("data_type"))
 		fmt.Printf("ALTER TABLE %s.%s ADD COLUMN %s %s", schema, c.get("table_name"), c.get("column_name"), dataType)
 	}
 
@@ -187,7 +193,7 @@ func (c *ColumnSchema) Add() {
 	if c.get("column_default") != "null" {
 		fmt.Printf(" DEFAULT %s", c.get("column_default"))
 	}
-	// NOTE: there are more identity column sequence options according to the PostgreSQL 
+	// NOTE: there are more identity column sequence options according to the PostgreSQL
 	// CREATE TABLE docs, but these do not appear to be available as of version 10.1
 	if c.get("is_identity") == "YES" {
 		fmt.Printf(" GENERATED %s AS IDENTITY", c.get("identity_generation"))
@@ -211,11 +217,11 @@ func (c *ColumnSchema) Change(obj interface{}) {
 	// Adjust data type for array columns
 	dataType1 := c.get("data_type")
 	if dataType1 == "ARRAY" {
-		dataType1 = c.get("array_type")+"[]"
+		dataType1 = c.get("array_type") + "[]"
 	}
 	dataType2 := c2.get("data_type")
 	if dataType2 == "ARRAY" {
-		dataType2 = c2.get("array_type")+"[]"
+		dataType2 = c2.get("array_type") + "[]"
 	}
 
 	// Detect column type change (mostly varchar length, or number size increase)
@@ -306,7 +312,7 @@ func (c *ColumnSchema) Change(obj interface{}) {
 // ==================================
 
 // compare outputs SQL to make the columns match between two databases or schemas
-func compare(conn1 *sql.DB, conn2 *sql.DB, tpl *template.Template) {
+func compare(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo, tpl *template.Template) {
 	buf1 := new(bytes.Buffer)
 	tpl.Execute(buf1, dbInfo1)
 
@@ -331,25 +337,25 @@ func compare(conn1 *sql.DB, conn2 *sql.DB, tpl *template.Template) {
 	sort.Sort(&rows2)
 
 	// We have to explicitly type this as Schema here for some unknown reason
-	var schema1 Schema = &ColumnSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &ColumnSchema{rows: rows2, rowNum: -1}
+	var schema1 Schema = &ColumnSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo1.DbSchema}
+	var schema2 Schema = &ColumnSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	// Compare the columns
 	doDiff(schema1, schema2)
 
 }
 
-// compareColumns outputs SQL to make the columns match between two databases or schemas
-func compareColumns(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareColumns outputs SQL to make the columns match between two databases or schemas
+func CompareColumns(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 
-    compare(conn1, conn2, columnSqlTemplate)
+	compare(conn1, conn2, dbInfo1, dbInfo2, columnSqlTemplate)
 
 }
 
-// compareColumns outputs SQL to make the tables columns (without views columns) match between two databases or schemas
-func compareTableColumns(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareColumns outputs SQL to make the tables columns (without views columns) match between two databases or schemas
+func CompareTableColumns(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 
-    compare(conn1, conn2, tableColumnSqlTemplate)
+	compare(conn1, conn2, dbInfo1, dbInfo2, tableColumnSqlTemplate)
 
 }
 
@@ -362,4 +368,3 @@ func getMaxLength(maxLength string) (string, bool) {
 	}
 	return maxLength, true
 }
-

@@ -4,17 +4,18 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
 import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 	"sort"
 	"strings"
 	"text/template"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
 )
 
 var (
@@ -70,9 +71,10 @@ func (slice TriggerRows) Swap(i, j int) {
 //
 // TriggerSchema implements the Schema interface defined in pgdiff.go
 type TriggerSchema struct {
-	rows   TriggerRows
-	rowNum int
-	done   bool
+	rows     TriggerRows
+	rowNum   int
+	done     bool
+	dbSchema string
 }
 
 // get returns the value from the current row for the given key
@@ -105,13 +107,18 @@ func (c *TriggerSchema) Compare(obj interface{}) int {
 }
 
 // Add returns SQL to create the trigger
-func (c TriggerSchema) Add() {
+func (c TriggerSchema) Add(obj interface{}) {
+	c2, ok := obj.(*TriggerSchema)
+	if !ok {
+		fmt.Println("Error!!!, Add needs a TriggerSchema instance", c2)
+		return
+	}
 	// If we are comparing two different schemas against each other, we need to do some
-	// modification of the first trigger definition so we create it in the right schema
+	// modification of the first trigger definition so we create it in the right dbSchema
 	triggerDef := c.get("trigger_def")
 	schemaName := c.get("schema_name")
-	if dbInfo1.DbSchema != dbInfo2.DbSchema {
-		schemaName = dbInfo2.DbSchema
+	if c.dbSchema != c2.dbSchema {
+		schemaName = c2.dbSchema
 		triggerDef = strings.Replace(
 			triggerDef,
 			fmt.Sprintf(" %s.%s ", c.get("schema_name"), c.get("table_name")),
@@ -128,7 +135,7 @@ func (c TriggerSchema) Drop() {
 }
 
 // Change handles the case where the trigger names match, but the definition does not
-func (c TriggerSchema) Change(obj interface{}) {
+func (c *TriggerSchema) Change(obj interface{}) {
 	c2, ok := obj.(*TriggerSchema)
 	if !ok {
 		fmt.Println("Error!!!, Change needs a TriggerSchema instance", c2)
@@ -137,11 +144,11 @@ func (c TriggerSchema) Change(obj interface{}) {
 		fmt.Println("-- This function looks different so we'll drop and recreate it:")
 
 		// If we are comparing two different schemas against each other, we need to do some
-		// modification of the first trigger definition so we create it in the right schema
+		// modification of the first trigger definition so we create it in the right dbSchema
 		triggerDef := c.get("trigger_def")
 		schemaName := c.get("schema_name")
-		if dbInfo1.DbSchema != dbInfo2.DbSchema {
-			schemaName = dbInfo2.DbSchema
+		if c.dbSchema != c2.dbSchema {
+			schemaName = c2.dbSchema
 			triggerDef = strings.Replace(
 				triggerDef,
 				fmt.Sprintf(" %s.%s ", c.get("schema_name"), c.get("table_name")),
@@ -157,8 +164,8 @@ func (c TriggerSchema) Change(obj interface{}) {
 	}
 }
 
-// compareTriggers outputs SQL to make the triggers match between DBs
-func compareTriggers(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareTriggers outputs SQL to make the triggers match between DBs
+func CompareTriggers(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 
 	buf1 := new(bytes.Buffer)
 	triggerSqlTemplate.Execute(buf1, dbInfo1)
@@ -182,8 +189,8 @@ func compareTriggers(conn1 *sql.DB, conn2 *sql.DB) {
 	sort.Sort(rows2)
 
 	// We must explicitly type this as Schema here
-	var schema1 Schema = &TriggerSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &TriggerSchema{rows: rows2, rowNum: -1}
+	var schema1 Schema = &TriggerSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo1.DbSchema}
+	var schema2 Schema = &TriggerSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	// Compare the triggers
 	doDiff(schema1, schema2)

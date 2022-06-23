@@ -4,17 +4,18 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
 import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 	"sort"
 	"strings"
 	"text/template"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
 )
 
 var (
@@ -91,9 +92,10 @@ func (slice GrantRelationshipRows) Swap(i, j int) {
 // GrantRelationshipSchema holds a slice of rows from one of the databases as well as
 // a reference to the current row of data we're viewing.
 type GrantRelationshipSchema struct {
-	rows   GrantRelationshipRows
-	rowNum int
-	done   bool
+	rows     GrantRelationshipRows
+	rowNum   int
+	done     bool
+	dbSchema string
 }
 
 // get returns the value from the current row for the given key
@@ -141,8 +143,14 @@ func (c *GrantRelationshipSchema) Compare(obj interface{}) int {
 }
 
 // Add prints SQL to add the grant
-func (c *GrantRelationshipSchema) Add() {
-	schema := dbInfo2.DbSchema
+func (c *GrantRelationshipSchema) Add(obj interface{}) {
+	c2, ok := obj.(*GrantRelationshipSchema)
+	if !ok {
+		fmt.Println("Error!!!, Add needs a GrantRelationshipSchema instance", c2)
+		return
+	}
+
+	schema := c2.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
@@ -199,8 +207,8 @@ func (c *GrantRelationshipSchema) Change(obj interface{}) {
 // Functions
 // ==================================
 
-// compareGrantRelationships outputs SQL to make the granted permissions match between DBs or schemas
-func compareGrantRelationships(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareGrantRelationships outputs SQL to make the granted permissions match between DBs or schemas
+func CompareGrantRelationships(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 
 	buf1 := new(bytes.Buffer)
 	grantRelationshipSqlTemplate.Execute(buf1, dbInfo1)
@@ -224,8 +232,8 @@ func compareGrantRelationships(conn1 *sql.DB, conn2 *sql.DB) {
 	sort.Sort(rows2)
 
 	// We have to explicitly type this as Schema here for some unknown (to me) reason
-	var schema1 Schema = &GrantRelationshipSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &GrantRelationshipSchema{rows: rows2, rowNum: -1}
+	var schema1 Schema = &GrantRelationshipSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo1.DbSchema}
+	var schema2 Schema = &GrantRelationshipSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	doDiff(schema1, schema2)
 }

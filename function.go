@@ -4,17 +4,18 @@
 // license that can be found in the LICENSE file.
 //
 
-package main
+package pgdiff
 
 import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 	"sort"
 	"strings"
 	"text/template"
+
+	"github.com/joncrlsn/misc"
+	"github.com/joncrlsn/pgutil"
 )
 
 var (
@@ -74,6 +75,7 @@ type FunctionSchema struct {
 	rows   FunctionRows
 	rowNum int
 	done   bool
+	schema string
 }
 
 // get returns the value from the current row for the given key
@@ -107,15 +109,21 @@ func (c *FunctionSchema) Compare(obj interface{}) int {
 }
 
 // Add returns SQL to create the function
-func (c FunctionSchema) Add() {
+func (c *FunctionSchema) Add(obj interface{}) {
+	c2, ok := obj.(*FunctionSchema)
+	if !ok {
+		fmt.Println("Error!!!, Add needs a FunctionSchema instance", c2)
+		return
+	}
+
 	// If we are comparing two different schemas against each other, we need to do some
-	// modification of the first function definition so we create it in the right schema
+	// modification of the first function definition so we create it in the right dbSchema
 	functionDef := c.get("definition")
-	if dbInfo1.DbSchema != dbInfo2.DbSchema {
+	if c.schema != c2.schema {
 		functionDef = strings.Replace(
 			functionDef,
 			fmt.Sprintf("FUNCTION %s.%s(", c.get("schema_name"), c.get("function_name")),
-			fmt.Sprintf("FUNCTION %s.%s(", dbInfo2.DbSchema, c.get("function_name")),
+			fmt.Sprintf("FUNCTION %s.%s(", c2.schema, c.get("function_name")),
 			-1)
 	}
 
@@ -142,13 +150,13 @@ func (c FunctionSchema) Change(obj interface{}) {
 		fmt.Println("-- This function is different so we'll recreate it:")
 
 		// If we are comparing two different schemas against each other, we need to do some
-		// modification of the first function definition so we create it in the right schema
+		// modification of the first function definition so we create it in the right dbSchema
 		functionDef := c.get("definition")
-		if dbInfo1.DbSchema != dbInfo2.DbSchema {
+		if c.schema != c2.schema {
 			functionDef = strings.Replace(
 				functionDef,
 				fmt.Sprintf("FUNCTION %s.%s(", c.get("schema_name"), c.get("function_name")),
-				fmt.Sprintf("FUNCTION %s.%s(", dbInfo2.DbSchema, c.get("function_name")),
+				fmt.Sprintf("FUNCTION %s.%s(", c2.schema, c.get("function_name")),
 				-1)
 		}
 
@@ -163,8 +171,8 @@ func (c FunctionSchema) Change(obj interface{}) {
 // Functions
 // ==================================
 
-// compareFunctions outputs SQL to make the functions match between DBs
-func compareFunctions(conn1 *sql.DB, conn2 *sql.DB) {
+// CompareFunctions outputs SQL to make the functions match between DBs
+func CompareFunctions(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
 
 	buf1 := new(bytes.Buffer)
 	functionSqlTemplate.Execute(buf1, dbInfo1)
@@ -188,8 +196,8 @@ func compareFunctions(conn1 *sql.DB, conn2 *sql.DB) {
 	sort.Sort(rows2)
 
 	// We must explicitly type this as Schema here
-	var schema1 Schema = &FunctionSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &FunctionSchema{rows: rows2, rowNum: -1}
+	var schema1 Schema = &FunctionSchema{rows: rows1, rowNum: -1, schema: dbInfo1.DbSchema}
+	var schema2 Schema = &FunctionSchema{rows: rows2, rowNum: -1, schema: dbInfo2.DbSchema}
 
 	// Compare the functions
 	doDiff(schema1, schema2)
