@@ -75,6 +75,7 @@ type TriggerSchema struct {
 	rowNum   int
 	done     bool
 	dbSchema string
+	other    *TriggerSchema
 }
 
 // get returns the value from the current row for the given key
@@ -101,24 +102,21 @@ func (c *TriggerSchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, Compare(obj) needs a TriggerSchema instance", c2)
 		return +999
 	}
+	c.other = c2
 
-	val := misc.CompareStrings(c.get("compare_name"), c2.get("compare_name"))
+	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	return val
 }
 
 // Add returns SQL to create the trigger
-func (c TriggerSchema) Add(obj interface{}) {
-	c2, ok := obj.(*TriggerSchema)
-	if !ok {
-		fmt.Println("Error!!!, Add needs a TriggerSchema instance", c2)
-		return
-	}
+func (c TriggerSchema) Add() {
+
 	// If we are comparing two different schemas against each other, we need to do some
 	// modification of the first trigger definition so we create it in the right dbSchema
 	triggerDef := c.get("trigger_def")
 	schemaName := c.get("schema_name")
-	if c.dbSchema != c2.dbSchema {
-		schemaName = c2.dbSchema
+	if c.dbSchema != c.other.dbSchema {
+		schemaName = c.other.dbSchema
 		triggerDef = strings.Replace(
 			triggerDef,
 			fmt.Sprintf(" %s.%s ", c.get("schema_name"), c.get("table_name")),
@@ -135,20 +133,17 @@ func (c TriggerSchema) Drop() {
 }
 
 // Change handles the case where the trigger names match, but the definition does not
-func (c *TriggerSchema) Change(obj interface{}) {
-	c2, ok := obj.(*TriggerSchema)
-	if !ok {
-		fmt.Println("Error!!!, Change needs a TriggerSchema instance", c2)
-	}
-	if c.get("trigger_def") != c2.get("trigger_def") {
+func (c *TriggerSchema) Change() {
+
+	if c.get("trigger_def") != c.other.get("trigger_def") {
 		fmt.Println("-- This function looks different so we'll drop and recreate it:")
 
 		// If we are comparing two different schemas against each other, we need to do some
 		// modification of the first trigger definition so we create it in the right dbSchema
 		triggerDef := c.get("trigger_def")
 		schemaName := c.get("schema_name")
-		if c.dbSchema != c2.dbSchema {
-			schemaName = c2.dbSchema
+		if c.dbSchema != c.other.dbSchema {
+			schemaName = c.other.dbSchema
 			triggerDef = strings.Replace(
 				triggerDef,
 				fmt.Sprintf(" %s.%s ", c.get("schema_name"), c.get("table_name")),

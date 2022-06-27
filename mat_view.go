@@ -42,6 +42,7 @@ type MatViewSchema struct {
 	rows   MatViewRows
 	rowNum int
 	done   bool
+	other  *MatViewSchema
 }
 
 // get returns the value from the current row for the given key
@@ -68,14 +69,15 @@ func (c *MatViewSchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, Compare(obj) needs a MatViewSchema instance", c2)
 		return +999
 	}
+	c.other = c2
 
-	val := misc.CompareStrings(c.get("matviewname"), c2.get("matviewname"))
-	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("matviewname"), c2.get("matviewname"))
+	val := misc.CompareStrings(c.get("matviewname"), c.other.get("matviewname"))
+	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("matviewname"), c.other.get("matviewname"))
 	return val
 }
 
 // Add returns SQL to create the matview
-func (c MatViewSchema) Add(obj interface{}) {
+func (c MatViewSchema) Add() {
 	fmt.Printf("CREATE MATERIALIZED VIEW %s AS %s \n\n%s \n\n", c.get("matviewname"), c.get("definition"), c.get("indexdef"))
 }
 
@@ -85,12 +87,9 @@ func (c MatViewSchema) Drop() {
 }
 
 // Change handles the case where the names match, but the definition does not
-func (c MatViewSchema) Change(obj interface{}) {
-	c2, ok := obj.(*MatViewSchema)
-	if !ok {
-		fmt.Println("Error!!!, Change needs a MatViewSchema instance", c2)
-	}
-	if c.get("definition") != c2.get("definition") {
+func (c MatViewSchema) Change() {
+
+	if c.get("definition") != c.other.get("definition") {
 		fmt.Printf("DROP MATERIALIZED VIEW %s;\n\n", c.get("matviewname"))
 		fmt.Printf("CREATE MATERIALIZED VIEW %s AS %s \n\n%s \n\n", c.get("matviewname"), c.get("definition"), c.get("indexdef"))
 	}

@@ -79,6 +79,7 @@ type OwnerSchema struct {
 	rows   OwnerRows
 	rowNum int
 	done   bool
+	other  *OwnerSchema
 }
 
 // get returns the value from the current row for the given key
@@ -113,13 +114,14 @@ func (c *OwnerSchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, Compare needs a OwnerSchema instance", c2)
 		return +999
 	}
-
-	val := misc.CompareStrings(c.get("compare_name"), c2.get("compare_name"))
+	c.other = c2
+	c.other = c.other
+	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	return val
 }
 
 // Add generates SQL to add the table/view owner
-func (c OwnerSchema) Add(obj interface{}) {
+func (c OwnerSchema) Add() {
 	fmt.Printf("-- Notice!, db2 has no %s named %s.  First, run pgdiff with the %s option.\n", c.get("type"), c.get("relationship_name"), c.get("type"))
 }
 
@@ -129,14 +131,9 @@ func (c OwnerSchema) Drop() {
 }
 
 // Change handles the case where the relationship name matches, but the owner does not
-func (c OwnerSchema) Change(obj interface{}) {
-	c2, ok := obj.(*OwnerSchema)
-	if !ok {
-		fmt.Println("-- Error!!!, Change needs a OwnerSchema instance", c2)
-	}
-
-	if c.get("owner") != c2.get("owner") {
-		fmt.Printf("ALTER %s %s.%s OWNER TO %s; \n", c.get("type"), c2.get("schema_name"), c.get("relationship_name"), c.get("owner"))
+func (c OwnerSchema) Change() {
+	if c.get("owner") != c.other.get("owner") {
+		fmt.Printf("ALTER %s %s.%s OWNER TO %s; \n", c.get("type"), c.other.get("schema_name"), c.get("relationship_name"), c.get("owner"))
 	}
 }
 

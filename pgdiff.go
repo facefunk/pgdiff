@@ -16,9 +16,9 @@ import (
 // added, dropped, or changed to match another database.
 type Schema interface {
 	Compare(schema interface{}) int
-	Add(schema interface{})
+	Add()
 	Drop()
-	Change(schema interface{})
+	Change()
 	NextRow() bool
 }
 
@@ -34,13 +34,13 @@ func doDiff(db1 Schema, db2 Schema) {
 		compareVal := db1.Compare(db2)
 		if compareVal == 0 {
 			// table and column match, look for non-identifying changes
-			db1.Change(db2)
+			db1.Change()
 			more1 = db1.NextRow()
 			more2 = db2.NextRow()
 		} else if compareVal < 0 {
 			// db2 is missing a value that db1 has
 			if more1 {
-				db1.Add(db2)
+				db1.Add()
 				more1 = db1.NextRow()
 			} else {
 				// db1 is at the end
@@ -54,7 +54,7 @@ func doDiff(db1 Schema, db2 Schema) {
 				more2 = db2.NextRow()
 			} else {
 				// db2 is at the end
-				db1.Add(db2)
+				db1.Add()
 				more1 = db1.NextRow()
 			}
 		}

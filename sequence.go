@@ -76,6 +76,7 @@ type SequenceSchema struct {
 	rowNum   int
 	done     bool
 	dbSchema string
+	other    *SequenceSchema
 }
 
 // get returns the value from the current row for the given key
@@ -102,20 +103,16 @@ func (c *SequenceSchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, Compare(obj) needs a SequenceSchema instance", c2)
 		return +999
 	}
+	c.other = c2
 
-	val := misc.CompareStrings(c.get("compare_name"), c2.get("compare_name"))
+	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	return val
 }
 
 // Add returns SQL to add the sequence
-func (c *SequenceSchema) Add(obj interface{}) {
-	c2, ok := obj.(*SequenceSchema)
-	if !ok {
-		fmt.Println("Error!!!, Add needs a SequenceSchema instance", c2)
-		return
-	}
+func (c *SequenceSchema) Add() {
 
-	schema := c2.dbSchema
+	schema := c.other.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
@@ -128,11 +125,8 @@ func (c SequenceSchema) Drop() {
 }
 
 // Change doesn't do anything right now.
-func (c SequenceSchema) Change(obj interface{}) {
-	c2, ok := obj.(*SequenceSchema)
-	if !ok {
-		fmt.Println("Error!!!, Change(obj) needs a SequenceSchema instance", c2)
-	}
+func (c SequenceSchema) Change() {
+
 	// Don't know of anything helpful we should do here
 }
 

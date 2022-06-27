@@ -75,6 +75,7 @@ type TableSchema struct {
 	rowNum   int
 	done     bool
 	dbSchema string
+	other    *TableSchema
 }
 
 // get returns the value from the current row for the given key
@@ -101,20 +102,17 @@ func (c *TableSchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, Compare(obj) needs a TableSchema instance", c2)
 		return +999
 	}
+	c.other = c2
 
-	val := misc.CompareStrings(c.get("compare_name"), c2.get("compare_name"))
-	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("table_name"), c2.get("table_name"))
+	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
+	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("table_name"), c.other.get("table_name"))
 	return val
 }
 
 // Add returns SQL to add the table or view
-func (c TableSchema) Add(obj interface{}) {
-	c2, ok := obj.(*TableSchema)
-	if !ok {
-		fmt.Println("Error!!!, Add needs a TableSchema instance", c2)
-		return
-	}
-	schema := c2.dbSchema
+func (c TableSchema) Add() {
+
+	schema := c.other.dbSchema
 	if schema == "*" {
 		schema = c.get("table_schema")
 	}
@@ -128,11 +126,8 @@ func (c TableSchema) Drop() {
 }
 
 // Change handles the case where the table and column match, but the details do not
-func (c TableSchema) Change(obj interface{}) {
-	c2, ok := obj.(*TableSchema)
-	if !ok {
-		fmt.Println("Error!!!, Change needs a TableSchema instance", c2)
-	}
+func (c TableSchema) Change() {
+
 	// There's nothing we need to do here
 }
 

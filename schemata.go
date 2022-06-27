@@ -42,6 +42,7 @@ type SchemataSchema struct {
 	rows   SchemataRows
 	rowNum int
 	done   bool
+	other  *SchemataSchema
 }
 
 // get returns the value from the current row for the given key
@@ -68,14 +69,15 @@ func (c *SchemataSchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, Compare(obj) needs a SchemataSchema instance", c2)
 		return +999
 	}
+	c.other = c2
 
-	val := misc.CompareStrings(c.get("schema_name"), c2.get("schema_name"))
-	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("schema_name"), c2.get("schema_name"))
+	val := misc.CompareStrings(c.get("schema_name"), c.other.get("schema_name"))
+	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("schema_name"), c.other.get("schema_name"))
 	return val
 }
 
 // Add returns SQL to add the schemata
-func (c SchemataSchema) Add(obj interface{}) {
+func (c SchemataSchema) Add() {
 	// CREATE SCHEMA schema_name [ AUTHORIZATION user_name
 	fmt.Printf("CREATE SCHEMA %s AUTHORIZATION %s;", c.get("schema_name"), c.get("schema_owner"))
 	fmt.Println()
@@ -88,11 +90,8 @@ func (c SchemataSchema) Drop() {
 }
 
 // Change handles the case where the dbSchema name matches, but the details do not
-func (c SchemataSchema) Change(obj interface{}) {
-	c2, ok := obj.(*SchemataSchema)
-	if !ok {
-		fmt.Println("Error!!!, Change needs a SchemataSchema instance", c2)
-	}
+func (c SchemataSchema) Change() {
+
 	// There's nothing we need to do here
 }
 

@@ -120,6 +120,7 @@ type ColumnSchema struct {
 	rowNum   int
 	done     bool
 	dbSchema string
+	other    *ColumnSchema
 }
 
 // get returns the value from the current row for the given key
@@ -145,19 +146,14 @@ func (c *ColumnSchema) Compare(obj interface{}) int {
 	if !ok {
 		fmt.Println("Error!!!, Compare needs a ColumnSchema instance", c2)
 	}
-
-	val := misc.CompareStrings(c.get("compare_name"), c2.get("compare_name"))
+	c.other = c2
+	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	return val
 }
 
 // Add prints SQL to add the column
-func (c *ColumnSchema) Add(obj interface{}) {
-	c2, ok := obj.(*ColumnSchema)
-	if !ok {
-		fmt.Println("Error!!!, Add needs a ColumnSchema instance", c2)
-		return
-	}
-	schema := c2.dbSchema
+func (c *ColumnSchema) Add() {
+	schema := c.other.dbSchema
 	if schema == "*" {
 		schema = c.get("table_schema")
 	}
@@ -208,20 +204,15 @@ func (c *ColumnSchema) Drop() {
 }
 
 // Change handles the case where the table and column match, but the details do not
-func (c *ColumnSchema) Change(obj interface{}) {
-	c2, ok := obj.(*ColumnSchema)
-	if !ok {
-		fmt.Println("Error!!!, ColumnSchema.Change(obj) needs a ColumnSchema instance", c2)
-	}
-
+func (c *ColumnSchema) Change() {
 	// Adjust data type for array columns
 	dataType1 := c.get("data_type")
 	if dataType1 == "ARRAY" {
 		dataType1 = c.get("array_type") + "[]"
 	}
-	dataType2 := c2.get("data_type")
+	dataType2 := c.other.get("data_type")
 	if dataType2 == "ARRAY" {
-		dataType2 = c2.get("array_type") + "[]"
+		dataType2 = c.other.get("array_type") + "[]"
 	}
 
 	// Detect column type change (mostly varchar length, or number size increase)
@@ -229,10 +220,10 @@ func (c *ColumnSchema) Change(obj interface{}) {
 	if dataType1 == dataType2 {
 		if dataType1 == "character varying" {
 			max1, max1Valid := getMaxLength(c.get("character_maximum_length"))
-			max2, max2Valid := getMaxLength(c2.get("character_maximum_length"))
+			max2, max2Valid := getMaxLength(c.other.get("character_maximum_length"))
 			if !max1Valid && !max2Valid {
 				// Leave them alone, they both have undefined max lengths
-			} else if (max1Valid || !max2Valid) && (max1 != c2.get("character_maximum_length")) {
+			} else if (max1Valid || !max2Valid) && (max1 != c.other.get("character_maximum_length")) {
 				//if !max1Valid {
 				//    fmt.Println("-- WARNING: varchar column has no maximum length.  Setting to 1024, which may result in data loss.")
 				//}
@@ -244,7 +235,7 @@ func (c *ColumnSchema) Change(obj interface{}) {
 					fmt.Println("-- WARNING: The next statement will shorten a character varying column, which may result in data loss.")
 				}
 				fmt.Printf("-- max1Valid: %v  max2Valid: %v \n", max1Valid, max2Valid)
-				fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE character varying(%s);\n", c2.get("table_schema"), c.get("table_name"), c.get("column_name"), max1)
+				fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE character varying(%s);\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), max1)
 			}
 		}
 	}
@@ -257,45 +248,45 @@ func (c *ColumnSchema) Change(obj interface{}) {
 			if !max1Valid {
 				fmt.Println("-- WARNING: varchar column has no maximum length.  Setting to 1024")
 			}
-			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE %s(%s);\n", c2.get("table_schema"), c.get("table_name"), c.get("column_name"), dataType1, max1)
+			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE %s(%s);\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), dataType1, max1)
 		} else {
-			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE %s;\n", c2.get("table_schema"), c.get("table_name"), c.get("column_name"), dataType1)
+			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE %s;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), dataType1)
 		}
 	}
 
 	// Detect column default change (or added, dropped)
 	if c.get("column_default") == "null" {
-		if c2.get("column_default") != "null" {
-			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s DROP DEFAULT;\n", c2.get("table_schema"), c.get("table_name"), c.get("column_name"))
+		if c.other.get("column_default") != "null" {
+			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s DROP DEFAULT;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))
 		}
-	} else if c.get("column_default") != c2.get("column_default") {
-		fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s SET DEFAULT %s;\n", c2.get("table_schema"), c.get("table_name"), c.get("column_name"), c.get("column_default"))
+	} else if c.get("column_default") != c.other.get("column_default") {
+		fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s SET DEFAULT %s;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), c.get("column_default"))
 	}
 
 	// Detect identity column change
 	// Save result to variable instead of printing because order for adding/removing
 	// is_nullable affects identity columns
 	var identitySql string
-	if c.get("is_identity") != c2.get("is_identity") {
+	if c.get("is_identity") != c.other.get("is_identity") {
 		// Knowing the version of db2 would eliminate the need for this warning
 		fmt.Println("-- WARNING: identity columns are not supported in PostgreSQL versions < 10.")
 		fmt.Println("-- Attempting to create identity columns in earlier versions will probably result in errors.")
 		if c.get("is_identity") == "YES" {
-			identitySql = fmt.Sprintf("ALTER TABLE \"%s\".\"%s\" ALTER COLUMN \"%s\" ADD GENERATED %s AS IDENTITY;\n", c2.get("table_schema"), c.get("table_name"), c.get("column_name"), c.get("identity_generation"))
+			identitySql = fmt.Sprintf("ALTER TABLE \"%s\".\"%s\" ALTER COLUMN \"%s\" ADD GENERATED %s AS IDENTITY;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), c.get("identity_generation"))
 		} else {
-			identitySql = fmt.Sprintf("ALTER TABLE \"%s\".\"%s\" ALTER COLUMN \"%s\" DROP IDENTITY;\n", c2.get("table_schema"), c.get("table_name"), c.get("column_name"))
+			identitySql = fmt.Sprintf("ALTER TABLE \"%s\".\"%s\" ALTER COLUMN \"%s\" DROP IDENTITY;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))
 		}
 	}
 
 	// Detect not-null and nullable change
-	if c.get("is_nullable") != c2.get("is_nullable") {
+	if c.get("is_nullable") != c.other.get("is_nullable") {
 		if c.get("is_nullable") == "YES" {
 			if identitySql != "" {
 				fmt.Printf(identitySql)
 			}
-			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s DROP NOT NULL;\n", c2.get("table_schema"), c.get("table_name"), c.get("column_name"))
+			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s DROP NOT NULL;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))
 		} else {
-			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s SET NOT NULL;\n", c2.get("table_schema"), c.get("table_name"), c.get("column_name"))
+			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s SET NOT NULL;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))
 			if identitySql != "" {
 				fmt.Printf(identitySql)
 			}

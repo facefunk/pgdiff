@@ -76,6 +76,7 @@ type FunctionSchema struct {
 	rowNum int
 	done   bool
 	schema string
+	other  *FunctionSchema
 }
 
 // get returns the value from the current row for the given key
@@ -102,28 +103,24 @@ func (c *FunctionSchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, Compare(obj) needs a FunctionSchema instance", c2)
 		return +999
 	}
+	c.other = c2
 
-	val := misc.CompareStrings(c.get("compare_name"), c2.get("compare_name"))
-	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("function_name"), c2.get("function_name"))
+	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
+	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("function_name"), c.other.get("function_name"))
 	return val
 }
 
 // Add returns SQL to create the function
-func (c *FunctionSchema) Add(obj interface{}) {
-	c2, ok := obj.(*FunctionSchema)
-	if !ok {
-		fmt.Println("Error!!!, Add needs a FunctionSchema instance", c2)
-		return
-	}
+func (c *FunctionSchema) Add() {
 
 	// If we are comparing two different schemas against each other, we need to do some
 	// modification of the first function definition so we create it in the right dbSchema
 	functionDef := c.get("definition")
-	if c.schema != c2.schema {
+	if c.schema != c.other.schema {
 		functionDef = strings.Replace(
 			functionDef,
 			fmt.Sprintf("FUNCTION %s.%s(", c.get("schema_name"), c.get("function_name")),
-			fmt.Sprintf("FUNCTION %s.%s(", c2.schema, c.get("function_name")),
+			fmt.Sprintf("FUNCTION %s.%s(", c.other.schema, c.get("function_name")),
 			-1)
 	}
 
@@ -141,22 +138,19 @@ func (c FunctionSchema) Drop() {
 }
 
 // Change handles the case where the function names match, but the definition does not
-func (c FunctionSchema) Change(obj interface{}) {
-	c2, ok := obj.(*FunctionSchema)
-	if !ok {
-		fmt.Println("Error!!!, Change needs a FunctionSchema instance", c2)
-	}
-	if c.get("definition") != c2.get("definition") {
+func (c FunctionSchema) Change() {
+
+	if c.get("definition") != c.other.get("definition") {
 		fmt.Println("-- This function is different so we'll recreate it:")
 
 		// If we are comparing two different schemas against each other, we need to do some
 		// modification of the first function definition so we create it in the right dbSchema
 		functionDef := c.get("definition")
-		if c.schema != c2.schema {
+		if c.schema != c.other.schema {
 			functionDef = strings.Replace(
 				functionDef,
 				fmt.Sprintf("FUNCTION %s.%s(", c.get("schema_name"), c.get("function_name")),
-				fmt.Sprintf("FUNCTION %s.%s(", c2.schema, c.get("function_name")),
+				fmt.Sprintf("FUNCTION %s.%s(", c.other.schema, c.get("function_name")),
 				-1)
 		}
 

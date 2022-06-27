@@ -86,6 +86,7 @@ type IndexSchema struct {
 	rowNum   int
 	done     bool
 	dbSchema string
+	other    *IndexSchema
 }
 
 // get returns the value from the current row for the given key
@@ -120,23 +121,21 @@ func (c *IndexSchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, change needs a IndexSchema instance", c2)
 		return +999
 	}
+	c.other = c2
 
 	if len(c.get("table_name")) == 0 || len(c.get("index_name")) == 0 {
 		fmt.Printf("--Comparing (table_name and/or index_name is empty): %v\n", c.getRow())
-		fmt.Printf("--           %v\n", c2.getRow())
+		fmt.Printf("--           %v\n", c.other.getRow())
 	}
 
-	val := misc.CompareStrings(c.get("compare_name"), c2.get("compare_name"))
+	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	return val
 }
 
 // Add prints SQL to add the index
-func (c *IndexSchema) Add(obj interface{}) {
-	c2, ok := obj.(*IndexSchema)
-	if !ok {
-		fmt.Println("Error!!!, Add needs a IndexSchema instance", c2)
-	}
-	schema := c2.dbSchema
+func (c *IndexSchema) Add() {
+
+	schema := c.other.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
@@ -150,11 +149,11 @@ func (c *IndexSchema) Add(obj interface{}) {
 	// If we are comparing two different schemas against each other, we need to do some
 	// modification of the first index_def so we create the index in the write dbSchema
 	indexDef := c.get("index_def")
-	if c.dbSchema != c2.dbSchema {
+	if c.dbSchema != c.other.dbSchema {
 		indexDef = strings.Replace(
 			indexDef,
 			fmt.Sprintf(" %s.%s ", c.get("schema_name"), c.get("table_name")),
-			fmt.Sprintf(" %s.%s ", c2.dbSchema, c.get("table_name")),
+			fmt.Sprintf(" %s.%s ", c.other.dbSchema, c.get("table_name")),
 			-1)
 	}
 
@@ -182,35 +181,31 @@ func (c *IndexSchema) Drop() {
 }
 
 // Change handles the case where the table and column match, but the details do not
-func (c *IndexSchema) Change(obj interface{}) {
-	c2, ok := obj.(*IndexSchema)
-	if !ok {
-		fmt.Println("-- Error!!!, Change needs an IndexSchema instance", c2)
-	}
+func (c *IndexSchema) Change() {
 
 	// Table and constraint name matches... We need to make sure the details match
 
-	// NOTE that there should always be an index_def for both c and c2 (but we're checking below anyway)
+	// NOTE that there should always be an index_def for both c and c.other (but we're checking below anyway)
 	if len(c.get("index_def")) == 0 {
-		fmt.Printf("-- Change: Unexpected situation in index.go: index_def is empty for 1: %v  2:%v\n", c.getRow(), c2.getRow())
+		fmt.Printf("-- Change: Unexpected situation in index.go: index_def is empty for 1: %v  2:%v\n", c.getRow(), c.other.getRow())
 		return
 	}
-	if len(c2.get("index_def")) == 0 {
-		fmt.Printf("-- Change: Unexpected situation in index.go: index_def is empty for 2: %v 1: %v\n", c2.getRow(), c.getRow())
+	if len(c.other.get("index_def")) == 0 {
+		fmt.Printf("-- Change: Unexpected situation in index.go: index_def is empty for 2: %v 1: %v\n", c.other.getRow(), c.getRow())
 		return
 	}
 
-	if c.get("constraint_def") != c2.get("constraint_def") {
-		// c1.constraint and c2.constraint are just different
-		fmt.Printf("-- CHANGE: Different defs on %s:\n--    %s\n--    %s\n", c.get("table_name"), c.get("constraint_def"), c2.get("constraint_def"))
+	if c.get("constraint_def") != c.other.get("constraint_def") {
+		// c1.constraint and c.other.constraint are just different
+		fmt.Printf("-- CHANGE: Different defs on %s:\n--    %s\n--    %s\n", c.get("table_name"), c.get("constraint_def"), c.other.get("constraint_def"))
 		if c.get("constraint_def") == "null" {
-			// c1.constraint does not exist, c2.constraint does, so
+			// c1.constraint does not exist, c.other.constraint does, so
 			// Drop constraint
-			fmt.Printf("DROP INDEX %s; -- %s \n", c2.get("index_name"), c2.get("index_def"))
-		} else if c2.get("constraint_def") == "null" {
-			// c1.constraint exists, c2.constraint does not, so
+			fmt.Printf("DROP INDEX %s; -- %s \n", c.other.get("index_name"), c.other.get("index_def"))
+		} else if c.other.get("constraint_def") == "null" {
+			// c1.constraint exists, c.other.constraint does not, so
 			// Add constraint
-			if c.get("index_def") == c2.get("index_def") {
+			if c.get("index_def") == c.other.get("index_def") {
 				// Indexes match, so
 				// Add constraint using the index
 				if c.get("pk") == "true" {
@@ -223,13 +218,13 @@ func (c *IndexSchema) Change(obj interface{}) {
 
 				}
 			} else {
-				// Drop the c2 index, create a copy of the c1 index
-				fmt.Printf("DROP INDEX %s; -- %s \n", c2.get("index_name"), c2.get("index_def"))
+				// Drop the c.other index, create a copy of the c1 index
+				fmt.Printf("DROP INDEX %s; -- %s \n", c.other.get("index_name"), c.other.get("index_def"))
 			}
 			// WIP
 			//fmt.Printf("ALTER TABLE %s ADD CONSTRAINT %s %s;\n", c.get("table_name"), c.get("index_name"), c.get("constraint_def"))
 
-		} else if c.get("index_def") != c2.get("index_def") {
+		} else if c.get("index_def") != c.other.get("index_def") {
 			// The constraints match
 		}
 
@@ -239,15 +234,15 @@ func (c *IndexSchema) Change(obj interface{}) {
 	// At this point, we know that the constraint_def matches.  Compare the index_def
 
 	indexDef1 := c.get("index_def")
-	indexDef2 := c2.get("index_def")
+	indexDef2 := c.other.get("index_def")
 
 	// If we are comparing two different schemas against each other, we need to do
 	// some modification of the first index_def so it looks more like the second
-	if c.dbSchema != c2.dbSchema {
+	if c.dbSchema != c.other.dbSchema {
 		indexDef1 = strings.Replace(
 			indexDef1,
 			fmt.Sprintf(" %s.%s ", c.get("schema_name"), c.get("table_name")),
-			fmt.Sprintf(" %s.%s ", c2.get("schema_name"), c2.get("table_name")),
+			fmt.Sprintf(" %s.%s ", c.other.get("schema_name"), c.other.get("table_name")),
 			-1,
 		)
 	}
@@ -255,16 +250,16 @@ func (c *IndexSchema) Change(obj interface{}) {
 	if indexDef1 != indexDef2 {
 		// Notice that, if we are here, then the two constraint_defs match (both may be empty)
 		// The indexes do not match, but the constraints do
-		if !strings.HasPrefix(c.get("index_def"), c2.get("index_def")) &&
-			!strings.HasPrefix(c2.get("index_def"), c.get("index_def")) {
+		if !strings.HasPrefix(c.get("index_def"), c.other.get("index_def")) &&
+			!strings.HasPrefix(c.other.get("index_def"), c.get("index_def")) {
 			fmt.Println("--\n--CHANGE: index defs are different for identical constraint defs:")
-			fmt.Printf("--    %s\n--    %s\n", c.get("index_def"), c2.get("index_def"))
+			fmt.Printf("--    %s\n--    %s\n", c.get("index_def"), c.other.get("index_def"))
 
 			// Drop the index (and maybe the constraint) so we can recreate the index
 			c.Drop()
 
 			// Recreate the index (and a constraint if specified)
-			c.Add(obj)
+			c.Add()
 		}
 	}
 

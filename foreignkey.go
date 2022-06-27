@@ -79,6 +79,7 @@ type ForeignKeySchema struct {
 	rowNum   int
 	done     bool
 	dbSchema string
+	other    *ForeignKeySchema
 }
 
 // get returns the value from the current row for the given key
@@ -113,25 +114,22 @@ func (c *ForeignKeySchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, Compare(obj) needs a ForeignKeySchema instance", c2)
 		return +999
 	}
+	c.other = c2
 
-	//fmt.Printf("Comparing %s with %s", c.get("table_name"), c2.get("table_name"))
-	val := misc.CompareStrings(c.get("compare_name"), c2.get("compare_name"))
+	//fmt.Printf("Comparing %s with %s", c.get("table_name"), c.other.get("table_name"))
+	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	if val != 0 {
 		return val
 	}
 
-	val = misc.CompareStrings(c.get("constraint_def"), c2.get("constraint_def"))
+	val = misc.CompareStrings(c.get("constraint_def"), c.other.get("constraint_def"))
 	return val
 }
 
 // Add returns SQL to add the foreign key
-func (c *ForeignKeySchema) Add(obj interface{}) {
-	c2, ok := obj.(*ForeignKeySchema)
-	if !ok {
-		fmt.Println("Error!!!, Add needs a ForeignKeySchema instance", c2)
-		return
-	}
-	schema := c2.dbSchema
+func (c *ForeignKeySchema) Add() {
+
+	schema := c.other.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
@@ -144,11 +142,8 @@ func (c ForeignKeySchema) Drop() {
 }
 
 // Change handles the case where the table and foreign key name, but the details do not
-func (c *ForeignKeySchema) Change(obj interface{}) {
-	c2, ok := obj.(*ForeignKeySchema)
-	if !ok {
-		fmt.Println("Error!!!, ForeignKeySchema.Change(obj) needs a ForeignKeySchema instance", c2)
-	}
+func (c *ForeignKeySchema) Change() {
+
 	// There is no "changing" a foreign key.  It either gets created or dropped (or left as-is).
 }
 

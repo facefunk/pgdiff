@@ -42,6 +42,7 @@ type ViewSchema struct {
 	rows   ViewRows
 	rowNum int
 	done   bool
+	other  *ViewSchema
 }
 
 // get returns the value from the current row for the given key
@@ -68,14 +69,15 @@ func (c *ViewSchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, Compare(obj) needs a ViewSchema instance", c2)
 		return +999
 	}
+	c.other = c2
 
-	val := misc.CompareStrings(c.get("viewname"), c2.get("viewname"))
-	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("viewname"), c2.get("viewname"))
+	val := misc.CompareStrings(c.get("viewname"), c.other.get("viewname"))
+	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("viewname"), c.other.get("viewname"))
 	return val
 }
 
 // Add returns SQL to create the view
-func (c ViewSchema) Add(obj interface{}) {
+func (c ViewSchema) Add() {
 	fmt.Printf("CREATE VIEW %s AS %s \n\n", c.get("viewname"), c.get("definition"))
 }
 
@@ -85,12 +87,9 @@ func (c ViewSchema) Drop() {
 }
 
 // Change handles the case where the names match, but the definition does not
-func (c ViewSchema) Change(obj interface{}) {
-	c2, ok := obj.(*ViewSchema)
-	if !ok {
-		fmt.Println("Error!!!, Change needs a ViewSchema instance", c2)
-	}
-	if c.get("definition") != c2.get("definition") {
+func (c ViewSchema) Change() {
+
+	if c.get("definition") != c.other.get("definition") {
 		fmt.Printf("DROP VIEW %s;\n", c.get("viewname"))
 		fmt.Printf("CREATE VIEW %s AS %s \n\n", c.get("viewname"), c.get("definition"))
 	}

@@ -45,6 +45,7 @@ type RoleSchema struct {
 	rows   RoleRows
 	rowNum int
 	done   bool
+	other  *RoleSchema
 }
 
 // get returns the value from the current row for the given key
@@ -79,8 +80,9 @@ func (c *RoleSchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, change needs a RoleSchema instance", c2)
 		return +999
 	}
+	c.other = c2
 
-	val := misc.CompareStrings(c.get("rolname"), c2.get("rolname"))
+	val := misc.CompareStrings(c.get("rolname"), c.other.get("rolname"))
 	return val
 }
 
@@ -108,7 +110,7 @@ where option can be:
 */
 
 // Add generates SQL to add the constraint/index
-func (c RoleSchema) Add(obj interface{}) {
+func (c RoleSchema) Add() {
 
 	// We don't care about efficiency here so we just concat strings
 	options := " WITH PASSWORD 'changeme'"
@@ -159,14 +161,10 @@ func (c RoleSchema) Drop() {
 }
 
 // Change handles the case where the role name matches, but the details do not
-func (c RoleSchema) Change(obj interface{}) {
-	c2, ok := obj.(*RoleSchema)
-	if !ok {
-		fmt.Println("Error!!!, Change needs a RoleSchema instance", c2)
-	}
+func (c RoleSchema) Change() {
 
 	options := ""
-	if c.get("rolsuper") != c2.get("rolsuper") {
+	if c.get("rolsuper") != c.other.get("rolsuper") {
 		if c.get("rolsuper") == "true" {
 			options += " SUPERUSER"
 		} else {
@@ -174,7 +172,7 @@ func (c RoleSchema) Change(obj interface{}) {
 		}
 	}
 
-	if c.get("rolcanlogin") != c2.get("rolcanlogin") {
+	if c.get("rolcanlogin") != c.other.get("rolcanlogin") {
 		if c.get("rolcanlogin") == "true" {
 			options += " LOGIN"
 		} else {
@@ -182,7 +180,7 @@ func (c RoleSchema) Change(obj interface{}) {
 		}
 	}
 
-	if c.get("rolcreatedb") != c2.get("rolcreatedb") {
+	if c.get("rolcreatedb") != c.other.get("rolcreatedb") {
 		if c.get("rolcreatedb") == "true" {
 			options += " CREATEDB"
 		} else {
@@ -190,7 +188,7 @@ func (c RoleSchema) Change(obj interface{}) {
 		}
 	}
 
-	if c.get("rolcreaterole") != c2.get("rolcreaterole") {
+	if c.get("rolcreaterole") != c.other.get("rolcreaterole") {
 		if c.get("rolcreaterole") == "true" {
 			options += " CREATEROLE"
 		} else {
@@ -198,7 +196,7 @@ func (c RoleSchema) Change(obj interface{}) {
 		}
 	}
 
-	if c.get("rolcreateuser") != c2.get("rolcreateuser") {
+	if c.get("rolcreateuser") != c.other.get("rolcreateuser") {
 		if c.get("rolcreateuser") == "true" {
 			options += " CREATEUSER"
 		} else {
@@ -206,7 +204,7 @@ func (c RoleSchema) Change(obj interface{}) {
 		}
 	}
 
-	if c.get("rolinherit") != c2.get("rolinherit") {
+	if c.get("rolinherit") != c.other.get("rolinherit") {
 		if c.get("rolinherit") == "true" {
 			options += " INHERIT"
 		} else {
@@ -214,7 +212,7 @@ func (c RoleSchema) Change(obj interface{}) {
 		}
 	}
 
-	if c.get("rolreplication") != c2.get("rolreplication") {
+	if c.get("rolreplication") != c.other.get("rolreplication") {
 		if c.get("rolreplication") == "true" {
 			options += " REPLICATION"
 		} else {
@@ -222,13 +220,13 @@ func (c RoleSchema) Change(obj interface{}) {
 		}
 	}
 
-	if c.get("rolconnlimit") != c2.get("rolconnlimit") {
+	if c.get("rolconnlimit") != c.other.get("rolconnlimit") {
 		if len(c.get("rolconnlimit")) > 0 {
 			options += " CONNECTION LIMIT " + c.get("rolconnlimit")
 		}
 	}
 
-	if c.get("rolvaliduntil") != c2.get("rolvaliduntil") {
+	if c.get("rolvaliduntil") != c.other.get("rolvaliduntil") {
 		if c.get("rolvaliduntil") != "null" {
 			options += fmt.Sprintf(" VALID UNTIL '%s'", c.get("rolvaliduntil"))
 		}
@@ -239,12 +237,12 @@ func (c RoleSchema) Change(obj interface{}) {
 		fmt.Printf("ALTER ROLE %s%s;\n", c.get("rolname"), options)
 	}
 
-	if c.get("memberof") != c2.get("memberof") {
-		fmt.Println(c.get("memberof"), "!=", c2.get("memberof"))
+	if c.get("memberof") != c.other.get("memberof") {
+		fmt.Println(c.get("memberof"), "!=", c.other.get("memberof"))
 
 		// Remove the curly brackets
 		memberof1 := curlyBracketRegex.ReplaceAllString(c.get("memberof"), "")
-		memberof2 := curlyBracketRegex.ReplaceAllString(c2.get("memberof"), "")
+		memberof2 := curlyBracketRegex.ReplaceAllString(c.other.get("memberof"), "")
 
 		// Split
 		membersof1 := strings.Split(memberof1, ",")

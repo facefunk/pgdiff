@@ -102,6 +102,7 @@ type GrantAttributeSchema struct {
 	rowNum   int
 	done     bool
 	dbSchema string
+	other    *GrantAttributeSchema
 }
 
 // get returns the value from the current row for the given key
@@ -137,27 +138,23 @@ func (c *GrantAttributeSchema) Compare(obj interface{}) int {
 		fmt.Println("Error!!!, Compare needs a GrantAttributeSchema instance", c2)
 		return +999
 	}
+	c.other = c2
 
-	val := misc.CompareStrings(c.get("compare_name"), c2.get("compare_name"))
+	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	if val != 0 {
 		return val
 	}
 
 	role1, _ := parseAcl(c.get("attribute_acl"))
-	role2, _ := parseAcl(c2.get("attribute_acl"))
+	role2, _ := parseAcl(c.other.get("attribute_acl"))
 	val = misc.CompareStrings(role1, role2)
 	return val
 }
 
 // Add prints SQL to add the grant
-func (c *GrantAttributeSchema) Add(obj interface{}) {
-	c2, ok := obj.(*GrantAttributeSchema)
-	if !ok {
-		fmt.Println("Error!!!, Add needs a GrantAttributeSchema instance", c2)
-		return
-	}
+func (c *GrantAttributeSchema) Add() {
 
-	schema := c2.dbSchema
+	schema := c.other.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
@@ -173,14 +170,10 @@ func (c *GrantAttributeSchema) Drop() {
 }
 
 // Change handles the case where the relationship and column match, but the grant does not
-func (c *GrantAttributeSchema) Change(obj interface{}) {
-	c2, ok := obj.(*GrantAttributeSchema)
-	if !ok {
-		fmt.Println("-- Error!!!, Change needs a GrantAttributeSchema instance", c2)
-	}
+func (c *GrantAttributeSchema) Change() {
 
 	role, grants1 := parseGrants(c.get("attribute_acl"))
-	_, grants2 := parseGrants(c2.get("attribute_acl"))
+	_, grants2 := parseGrants(c.other.get("attribute_acl"))
 
 	// Find grants in the first db that are not in the second
 	// (for this relationship and owner)
@@ -192,7 +185,7 @@ func (c *GrantAttributeSchema) Change(obj interface{}) {
 	}
 	if len(grantList) > 0 {
 		fmt.Printf("GRANT %s (%s) ON %s.%s TO %s; -- Change\n", strings.Join(grantList, ", "),
-			c.get("attribute_name"), c2.get("schema_name"), c.get("relationship_name"), role)
+			c.get("attribute_name"), c.other.get("schema_name"), c.get("relationship_name"), role)
 	}
 
 	// Find grants in the second db that are not in the first
@@ -204,11 +197,11 @@ func (c *GrantAttributeSchema) Change(obj interface{}) {
 		}
 	}
 	if len(revokeList) > 0 {
-		fmt.Printf("REVOKE %s (%s) ON %s.%s FROM %s; -- Change\n", strings.Join(revokeList, ", "), c.get("attribute_name"), c2.get("schema_name"), c.get("relationship_name"), role)
+		fmt.Printf("REVOKE %s (%s) ON %s.%s FROM %s; -- Change\n", strings.Join(revokeList, ", "), c.get("attribute_name"), c.other.get("schema_name"), c.get("relationship_name"), role)
 	}
 
 	//fmt.Printf("--1 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.get("attribute_name"), c.get("attribute_acl"), c.get("attribute_name"), c.get("attribute_acl"))
-	//fmt.Printf("--2 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c2.get("attribute_name"), c2.get("attribute_acl"), c2.get("attribute_name"), c2.get("attribute_acl"))
+	//fmt.Printf("--2 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.other.get("attribute_name"), c.other.get("attribute_acl"), c.other.get("attribute_name"), c.other.get("attribute_acl"))
 }
 
 // ==================================
