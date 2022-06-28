@@ -1,0 +1,34 @@
+
+==============================================================
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+
+# Compare the tables between two schemas in the same database
+# Expect SQL:
+#   Add table9 to schema s2
+#   Drop table11 from schema s2
+
+DROP TABLE s2.table11;
+CREATE TABLE s2.table9();
+
+==============================================================
+CREATE SCHEMA
+CREATE TABLE
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE SCHEMA
+
+# Compare the tables in all schemas between two databases
+# Expect:
+#   Add s1.table10 to db2
+#   Drop s2.table12 from db2
+
+CREATE TABLE s1.table10();
+DROP TABLE s2.table12;
+

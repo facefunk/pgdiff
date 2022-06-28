@@ -1,0 +1,39 @@
+
+====================================================
+
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+
+# Compare the foreign keys between two schemas in the same database
+# Expect SQL:
+#   Add foreign key on s2.table2.table1_id
+#   Drop foreign key from s2.table3.table2_id
+
+ALTER TABLE s2.table2 ADD CONSTRAINT table2_table1_id_fkey FOREIGN KEY (table1_id) REFERENCES s1.table1(id);
+ALTER TABLE s2.table3 DROP CONSTRAINT table3_table2_id_fkey; -- FOREIGN KEY (table2_id) REFERENCES s2.table2(id)
+
+====================================================
+
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+
+# Compare the foreign keys in all schemas between two databases
+# Expect SQL:
+#   Add foreign key on db2.s1.table2.table1_id
+#   Drop foreign key on db2.s2.table2.table1_id
+
+ALTER TABLE s1.table2 ADD CONSTRAINT table2_table1_id_fkey FOREIGN KEY (table1_id) REFERENCES s1.table1(id);
+ALTER TABLE s2.table2 DROP CONSTRAINT table2_table1_id_fkey; -- FOREIGN KEY (table1_id) REFERENCES s2.table1(id)
+

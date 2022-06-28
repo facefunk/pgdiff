@@ -63,8 +63,8 @@ func main() {
 	schemaType = strings.ToUpper(args[0])
 	fmt.Println("-- schemaType:", schemaType)
 
-	fmt.Println("-- db1:", dbInfo1)
-	fmt.Println("-- db2:", dbInfo2)
+	fmt.Println("-- db1:", *dbInfo1)
+	fmt.Println("-- db2:", *dbInfo2)
 	fmt.Println("-- Run the following SQL against db2:")
 
 	conn1, err := dbInfo1.Open()

@@ -1,0 +1,37 @@
+
+==========================================================
+
+CREATE SCHEMA
+CREATE TABLE
+CREATE INDEX
+CREATE SCHEMA
+CREATE TABLE
+CREATE INDEX
+
+# Compare the indexes between two schemas in the same database
+# Expect SQL (pseudocode):
+#   Add index on s2.table1.name
+#   Drop index on s2.table1.url
+
+CREATE INDEX table1_name_idx ON s2.table1 USING btree (name);
+--Comparing (table_name and/or index_name is empty): map[]
+DROP INDEX s2.table1_url_idx;
+
+==========================================================
+
+CREATE SCHEMA
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE SCHEMA
+CREATE TABLE
+
+# Compare the indexes in all schemas between two databases
+# Expect SQL (pseudocode):
+#   Drop index on db2 s1.table1.url
+#   Add index on db2 s2.table1.url
+
+DROP INDEX s1.table1_url_idx;
+CREATE INDEX table1_url_idx ON s2.table1 USING btree (url);
+
+

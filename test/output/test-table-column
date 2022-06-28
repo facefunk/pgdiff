@@ -1,0 +1,43 @@
+
+==============================================================
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE VIEW
+
+# Compare the columns between two schemas in the same database
+# Expect SQL:
+#   Add s2.table9.name
+#   Change s2.table10.id to bigint
+#   Drop s2.table11.id
+
+ALTER TABLE s2.table10 ALTER COLUMN id TYPE bigint;
+ALTER TABLE s2.table11 DROP COLUMN IF EXISTS id;
+ALTER TABLE s2.table9 ADD COLUMN name character varying(50);
+
+==============================================================
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE VIEW
+
+# Compare the table columns in all schemas between two databases
+# Expect:
+#   Change s1.table9.name to varchar(50) 
+#   Add s1.table10.id
+#   Drop s1.table11.dropme
+
+ALTER TABLE s1.table10 ADD COLUMN id bigint;
+ALTER TABLE s1.table11 DROP COLUMN IF EXISTS dropme;
+ALTER TABLE s1.table9 ALTER COLUMN name TYPE character varying(50);
+

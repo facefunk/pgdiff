@@ -1,0 +1,65 @@
+
+==========================================================
+
+CREATE SCHEMA
+CREATE SCHEMA
+CREATE TABLE
+GRANT
+CREATE TABLE
+GRANT
+CREATE TABLE
+CREATE TABLE
+GRANT
+CREATE TABLE
+GRANT
+CREATE TABLE
+
+# Compare the grants between two schemas in the same database
+# Expect SQL (pseudocode):
+#   Grant  UPDATE     (name) on s2.table1 for u2
+#   Revoke REFERENCES (name) on s2.table1 for u2
+#   Revoke SELECT     (name) on s2.table2 for u2
+#   Grant  SELECT     (name) on s2.table3 for u2
+
+GRANT UPDATE (name) ON s2.table1 TO u2; -- Change
+REVOKE REFERENCES (name) ON s2.table1 FROM u2; -- Change
+REVOKE SELECT (name) ON s2.table2 FROM u2; -- Drop
+GRANT SELECT (name) ON s2.table3 TO u2; -- Add
+
+==========================================================
+
+CREATE SCHEMA
+CREATE SCHEMA
+CREATE TABLE
+GRANT
+CREATE TABLE
+GRANT
+CREATE TABLE
+CREATE TABLE
+GRANT
+CREATE SCHEMA
+CREATE SCHEMA
+CREATE TABLE
+GRANT
+GRANT
+CREATE TABLE
+GRANT
+CREATE TABLE
+GRANT
+CREATE TABLE
+
+# Compare the grants in all schemas between two databases
+# Expect SQL (pseudocode):
+#   Revoke SELECT     (id)   on s1.table1 for u2
+#   Grant  UPDATE     (name) on s2.table1 for u2
+#   Revoke REFERENCES (name) on s2.table1 for u2
+#   Revoke UPDATE     (name) on s2.table3 for u2
+#   Grant  UPDATE     (name) on s2.table4 for u2
+
+REVOKE SELECT (id) ON s1.table1 FROM u2; -- Drop
+GRANT UPDATE (name) ON s2.table1 TO u2; -- Change
+REVOKE REFERENCES (name) ON s2.table1 FROM u2; -- Change
+REVOKE UPDATE (name) ON s2.table3 FROM u2; -- Drop
+GRANT UPDATE (name) ON s2.table4 TO u2; -- Add
+
+
