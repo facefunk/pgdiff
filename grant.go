@@ -55,24 +55,25 @@ rolename=xxxx -- privileges granted to a role
             * -- grant option for preceding privilege
         /yyyy -- role that granted this privilege
 */
-func parseGrants(acl string) (string, []string) {
+func parseGrants(acl string) (string, []string, []Stringer) {
 	role, perms := parseAcl(acl)
 	if len(role) == 0 && len(acl) == 0 {
-		return role, make([]string, 0)
+		return role, make([]string, 0), nil
 	}
 	// For each character in perms, convert it to a word found in permMap
 	// e.g. 'a' maps to 'INSERT'
 	permWords := make(sort.StringSlice, 0)
+	var errs []Stringer
 	for _, c := range strings.Split(perms, "") {
 		permWord := permMap[c]
 		if len(permWord) > 0 {
 			permWords = append(permWords, permWord)
 		} else {
-			fmt.Printf("-- Error, found permission character we haven't coded for: %s", c)
+			errs = append(errs, Error(fmt.Sprintf("-- Error, found permission character we haven't coded for: %s", c)))
 		}
 	}
 	permWords.Sort()
-	return role, permWords
+	return role, permWords, errs
 }
 
 // parseAcl parses an ACL (access control list) string (e.g. 'c42=aur/postgres') into a role and

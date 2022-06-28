@@ -141,18 +141,21 @@ func (c *ColumnSchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *ColumnSchema) Compare(obj interface{}) int {
+func (c *ColumnSchema) Compare(obj Schema) (int, *Error) {
+	var err *Error
 	c2, ok := obj.(*ColumnSchema)
 	if !ok {
-		fmt.Println("Error!!!, Compare needs a ColumnSchema instance", c2)
+		e := Error(fmt.Sprint("Error!!!, Compare needs a ColumnSchema instance", c2))
+		err = &e
 	}
 	c.other = c2
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
-	return val
+	return val, err
 }
 
 // Add prints SQL to add the column
-func (c *ColumnSchema) Add() {
+func (c *ColumnSchema) Add() []Stringer {
+	var strs []Stringer
 	schema := c.other.dbSchema
 	if schema == "*" {
 		schema = c.get("table_schema")
@@ -160,51 +163,54 @@ func (c *ColumnSchema) Add() {
 
 	// Knowing the version of db2 would eliminate the need for this warning
 	if c.get("is_identity") == "YES" {
-		fmt.Println("-- WARNING: identity columns are not supported in PostgreSQL versions < 10.")
-		fmt.Println("-- Attempting to create identity columns in earlier versions will probably result in errors.")
+		strs = append(strs, Notice("-- WARNING: identity columns are not supported in PostgreSQL versions < 10."),
+			Notice("-- Attempting to create identity columns in earlier versions will probably result in errors."))
 	}
 
+	var alter string
 	if c.get("data_type") == "character varying" {
 		maxLength, valid := getMaxLength(c.get("character_maximum_length"))
 		if !valid {
-			fmt.Printf("ALTER TABLE %s.%s ADD COLUMN %s character varying", schema, c.get("table_name"), c.get("column_name"))
+			alter = fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s character varying", schema, c.get("table_name"), c.get("column_name"))
 		} else {
-			fmt.Printf("ALTER TABLE %s.%s ADD COLUMN %s character varying(%s)", schema, c.get("table_name"), c.get("column_name"), maxLength)
+			alter = fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s character varying(%s)", schema, c.get("table_name"), c.get("column_name"), maxLength)
 		}
 	} else {
 		dataType := c.get("data_type")
 		//if c.get("data_type") == "ARRAY" {
-		//fmt.Println("-- Note that adding of array data types are not yet generated properly.")
+		//strs = append(strs, Notice(fmt.Sprintln("-- Note that adding of array data types are not yet generated properly.")))
 		//}
 		if dataType == "ARRAY" {
 			dataType = c.get("array_type") + "[]"
 		}
-		//fmt.Printf("ALTER TABLE %s.%s ADD COLUMN %s %s", dbSchema, c.get("table_name"), c.get("column_name"), c.get("data_type"))
-		fmt.Printf("ALTER TABLE %s.%s ADD COLUMN %s %s", schema, c.get("table_name"), c.get("column_name"), dataType)
+		//alter = mt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s", dbSchema, c.get("table_name"), c.get("column_name"), c.get("data_type"))
+		alter = fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s", schema, c.get("table_name"), c.get("column_name"), dataType)
 	}
 
 	if c.get("is_nullable") == "NO" {
-		fmt.Printf(" NOT NULL")
+		alter += " NOT NULL"
 	}
 	if c.get("column_default") != "null" {
-		fmt.Printf(" DEFAULT %s", c.get("column_default"))
+		alter += fmt.Sprintf(" DEFAULT %s", c.get("column_default"))
 	}
 	// NOTE: there are more identity column sequence options according to the PostgreSQL
 	// CREATE TABLE docs, but these do not appear to be available as of version 10.1
 	if c.get("is_identity") == "YES" {
-		fmt.Printf(" GENERATED %s AS IDENTITY", c.get("identity_generation"))
+		alter += fmt.Sprintf(" GENERATED %s AS IDENTITY", c.get("identity_generation"))
 	}
-	fmt.Printf(";\n")
+	strs = append(strs, Line(alter+";"))
+	return strs
 }
 
 // Drop prints SQL to drop the column
-func (c *ColumnSchema) Drop() {
+func (c *ColumnSchema) Drop() []Stringer {
 	// if dropping column
-	fmt.Printf("ALTER TABLE %s.%s DROP COLUMN IF EXISTS %s;\n", c.get("table_schema"), c.get("table_name"), c.get("column_name"))
+	return []Stringer{Line(fmt.Sprintf("ALTER TABLE %s.%s DROP COLUMN IF EXISTS %s;", c.get("table_schema"), c.get("table_name"), c.get("column_name")))}
 }
 
 // Change handles the case where the table and column match, but the details do not
-func (c *ColumnSchema) Change() {
+func (c *ColumnSchema) Change() []Stringer {
+	var strs []Stringer
 	// Adjust data type for array columns
 	dataType1 := c.get("data_type")
 	if dataType1 == "ARRAY" {
@@ -225,42 +231,42 @@ func (c *ColumnSchema) Change() {
 				// Leave them alone, they both have undefined max lengths
 			} else if (max1Valid || !max2Valid) && (max1 != c.other.get("character_maximum_length")) {
 				//if !max1Valid {
-				//    fmt.Println("-- WARNING: varchar column has no maximum length.  Setting to 1024, which may result in data loss.")
+				//    strs = append(strs, Line(fmt.Sprintln("-- WARNING: varchar column has no maximum length.  Setting to 1024, which may result in data loss.")))
 				//}
 				max1Int, err1 := strconv.Atoi(max1)
 				check("converting string to int", err1)
 				max2Int, err2 := strconv.Atoi(max2)
 				check("converting string to int", err2)
 				if max1Int < max2Int {
-					fmt.Println("-- WARNING: The next statement will shorten a character varying column, which may result in data loss.")
+					strs = append(strs, Notice("-- WARNING: The next statement will shorten a character varying column, which may result in data loss."))
 				}
-				fmt.Printf("-- max1Valid: %v  max2Valid: %v \n", max1Valid, max2Valid)
-				fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE character varying(%s);\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), max1)
+				strs = append(strs, Notice(fmt.Sprintf("-- max1Valid: %v  max2Valid: %v", max1Valid, max2Valid)),
+					Line(fmt.Sprintf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE character varying(%s);", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), max1)))
 			}
 		}
 	}
 
 	// Code and test a column change from integer to bigint
 	if dataType1 != dataType2 {
-		fmt.Printf("-- WARNING: This type change may not work well: (%s to %s).\n", dataType2, dataType1)
+		strs = append(strs, Notice(fmt.Sprintf("-- WARNING: This type change may not work well: (%s to %s).", dataType2, dataType1)))
 		if strings.HasPrefix(dataType1, "character") {
 			max1, max1Valid := getMaxLength(c.get("character_maximum_length"))
 			if !max1Valid {
-				fmt.Println("-- WARNING: varchar column has no maximum length.  Setting to 1024")
+				strs = append(strs, Notice("-- WARNING: varchar column has no maximum length.  Setting to 1024"))
 			}
-			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE %s(%s);\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), dataType1, max1)
+			strs = append(strs, Line(fmt.Sprintf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE %s(%s);", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), dataType1, max1)))
 		} else {
-			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE %s;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), dataType1)
+			strs = append(strs, Line(fmt.Sprintf("ALTER TABLE %s.%s ALTER COLUMN %s TYPE %s;", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), dataType1)))
 		}
 	}
 
 	// Detect column default change (or added, dropped)
 	if c.get("column_default") == "null" {
 		if c.other.get("column_default") != "null" {
-			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s DROP DEFAULT;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))
+			strs = append(strs, Line(fmt.Sprintf("ALTER TABLE %s.%s ALTER COLUMN %s DROP DEFAULT;", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))))
 		}
 	} else if c.get("column_default") != c.other.get("column_default") {
-		fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s SET DEFAULT %s;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), c.get("column_default"))
+		strs = append(strs, Line(fmt.Sprintf("ALTER TABLE %s.%s ALTER COLUMN %s SET DEFAULT %s;", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), c.get("column_default"))))
 	}
 
 	// Detect identity column change
@@ -269,12 +275,12 @@ func (c *ColumnSchema) Change() {
 	var identitySql string
 	if c.get("is_identity") != c.other.get("is_identity") {
 		// Knowing the version of db2 would eliminate the need for this warning
-		fmt.Println("-- WARNING: identity columns are not supported in PostgreSQL versions < 10.")
-		fmt.Println("-- Attempting to create identity columns in earlier versions will probably result in errors.")
+		strs = append(strs, Notice("-- WARNING: identity columns are not supported in PostgreSQL versions < 10."),
+			Notice("-- Attempting to create identity columns in earlier versions will probably result in errors."))
 		if c.get("is_identity") == "YES" {
-			identitySql = fmt.Sprintf("ALTER TABLE \"%s\".\"%s\" ALTER COLUMN \"%s\" ADD GENERATED %s AS IDENTITY;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), c.get("identity_generation"))
+			identitySql = fmt.Sprintf("ALTER TABLE \"%s\".\"%s\" ALTER COLUMN \"%s\" ADD GENERATED %s AS IDENTITY;", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"), c.get("identity_generation"))
 		} else {
-			identitySql = fmt.Sprintf("ALTER TABLE \"%s\".\"%s\" ALTER COLUMN \"%s\" DROP IDENTITY;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))
+			identitySql = fmt.Sprintf("ALTER TABLE \"%s\".\"%s\" ALTER COLUMN \"%s\" DROP IDENTITY;", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))
 		}
 	}
 
@@ -282,20 +288,21 @@ func (c *ColumnSchema) Change() {
 	if c.get("is_nullable") != c.other.get("is_nullable") {
 		if c.get("is_nullable") == "YES" {
 			if identitySql != "" {
-				fmt.Printf(identitySql)
+				strs = append(strs, Line(identitySql))
 			}
-			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s DROP NOT NULL;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))
+			strs = append(strs, Line(fmt.Sprintf("ALTER TABLE %s.%s ALTER COLUMN %s DROP NOT NULL;", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))))
 		} else {
-			fmt.Printf("ALTER TABLE %s.%s ALTER COLUMN %s SET NOT NULL;\n", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))
+			strs = append(strs, Line(fmt.Sprintf("ALTER TABLE %s.%s ALTER COLUMN %s SET NOT NULL;", c.other.get("table_schema"), c.get("table_name"), c.get("column_name"))))
 			if identitySql != "" {
-				fmt.Printf(identitySql)
+				strs = append(strs, Line(identitySql))
 			}
 		}
 	} else {
 		if identitySql != "" {
-			fmt.Printf(identitySql)
+			strs = append(strs, Line(identitySql))
 		}
 	}
+	return strs
 }
 
 // ==================================
@@ -303,7 +310,7 @@ func (c *ColumnSchema) Change() {
 // ==================================
 
 // compare outputs SQL to make the columns match between two databases or schemas
-func compare(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo, tpl *template.Template) {
+func compare(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo, tpl *template.Template) []Stringer {
 	buf1 := new(bytes.Buffer)
 	tpl.Execute(buf1, dbInfo1)
 
@@ -332,21 +339,20 @@ func compare(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgut
 	var schema2 Schema = &ColumnSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	// Compare the columns
-	doDiff(schema1, schema2)
-
+	return doDiff(schema1, schema2)
 }
 
 // CompareColumns outputs SQL to make the columns match between two databases or schemas
-func CompareColumns(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareColumns(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 
-	compare(conn1, conn2, dbInfo1, dbInfo2, columnSqlTemplate)
+	return compare(conn1, conn2, dbInfo1, dbInfo2, columnSqlTemplate)
 
 }
 
-// CompareColumns outputs SQL to make the tables columns (without views columns) match between two databases or schemas
-func CompareTableColumns(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+// CompareTableColumns outputs SQL to make the tables columns (without views columns) match between two databases or schemas
+func CompareTableColumns(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 
-	compare(conn1, conn2, dbInfo1, dbInfo2, tableColumnSqlTemplate)
+	return compare(conn1, conn2, dbInfo1, dbInfo2, tableColumnSqlTemplate)
 
 }
 

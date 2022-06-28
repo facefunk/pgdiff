@@ -108,37 +108,38 @@ func (c *OwnerSchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *OwnerSchema) Compare(obj interface{}) int {
+func (c *OwnerSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*OwnerSchema)
 	if !ok {
-		fmt.Println("Error!!!, Compare needs a OwnerSchema instance", c2)
-		return +999
+		err := Error(fmt.Sprint("compare needs a OwnerSchema instance", c2))
+		return +999, &err
 	}
 	c.other = c2
 	c.other = c.other
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
-	return val
+	return val, nil
 }
 
 // Add generates SQL to add the table/view owner
-func (c OwnerSchema) Add() {
-	fmt.Printf("-- Notice!, db2 has no %s named %s.  First, run pgdiff with the %s option.\n", c.get("type"), c.get("relationship_name"), c.get("type"))
+func (c OwnerSchema) Add() []Stringer {
+	return []Stringer{Notice(fmt.Sprintf("-- Notice!, db2 has no %s named %s.  First, run pgdiff with the %s option.", c.get("type"), c.get("relationship_name"), c.get("type")))}
 }
 
 // Drop generates SQL to drop the owner
-func (c OwnerSchema) Drop() {
-	fmt.Printf("-- Notice!, db2 has a %s that db1 does not: %s.   First, run pgdiff with the %s option.\n", c.get("type"), c.get("relationship_name"), c.get("type"))
+func (c OwnerSchema) Drop() []Stringer {
+	return []Stringer{Notice(fmt.Sprintf("-- Notice!, db2 has a %s that db1 does not: %s.   First, run pgdiff with the %s option.", c.get("type"), c.get("relationship_name"), c.get("type")))}
 }
 
 // Change handles the case where the relationship name matches, but the owner does not
-func (c OwnerSchema) Change() {
+func (c OwnerSchema) Change() []Stringer {
 	if c.get("owner") != c.other.get("owner") {
-		fmt.Printf("ALTER %s %s.%s OWNER TO %s; \n", c.get("type"), c.other.get("schema_name"), c.get("relationship_name"), c.get("owner"))
+		return []Stringer{Line(fmt.Sprintf("ALTER %s %s.%s OWNER TO %s;", c.get("type"), c.other.get("schema_name"), c.get("relationship_name"), c.get("owner")))}
 	}
+	return nil
 }
 
 // CompareOwners compares the ownership of tables, sequences, and views between two databases or schemas
-func CompareOwners(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareOwners(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 
 	buf1 := new(bytes.Buffer)
 	ownerSqlTemplate.Execute(buf1, dbInfo1)
@@ -165,5 +166,5 @@ func CompareOwners(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2
 	var schema1 Schema = &OwnerSchema{rows: rows1, rowNum: -1}
 	var schema2 Schema = &OwnerSchema{rows: rows2, rowNum: -1}
 
-	doDiff(schema1, schema2)
+	return doDiff(schema1, schema2)
 }

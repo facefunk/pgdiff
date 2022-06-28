@@ -65,12 +65,12 @@ func (slice IndexRows) Len() int {
 }
 
 func (slice IndexRows) Less(i, j int) bool {
-	//fmt.Printf("--Less %s:%s with %s:%s", slice[i]["table_name"], slice[i]["column_name"], slice[j]["table_name"], slice[j]["column_name"])
+	//strs = append(strs, Line(fmt.Sprintf("--Less %s:%s with %s:%s", slice[i]["table_name"], slice[i]["column_name"], slice[j]["table_name"], slice[j]["column_name"])))
 	return slice[i]["compare_name"] < slice[j]["compare_name"]
 }
 
 func (slice IndexRows) Swap(i, j int) {
-	//fmt.Printf("--Swapping %d/%s:%s with %d/%s:%s \n", i, slice[i]["table_name"], slice[i]["index_name"], j, slice[j]["table_name"], slice[j]["index_name"])
+	//strs = append(strs, Line(fmt.Sprintf("--Swapping %d/%s:%s with %d/%s:%s \n", i, slice[i]["table_name"], slice[i]["index_name"], j, slice[j]["table_name"], slice[j]["index_name"])))
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
@@ -115,25 +115,27 @@ func (c *IndexSchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *IndexSchema) Compare(obj interface{}) int {
+func (c *IndexSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*IndexSchema)
 	if !ok {
-		fmt.Println("Error!!!, change needs a IndexSchema instance", c2)
-		return +999
+		err := Error(fmt.Sprint("change needs a IndexSchema instance", c2))
+		return +999, &err
 	}
 	c.other = c2
-
+	var err *Error
 	if len(c.get("table_name")) == 0 || len(c.get("index_name")) == 0 {
-		fmt.Printf("--Comparing (table_name and/or index_name is empty): %v\n", c.getRow())
-		fmt.Printf("--           %v\n", c.other.getRow())
+		e := Error(fmt.Sprintf("--Comparing (table_name and/or index_name is empty): %v\n--           %v",
+			c.getRow(), c.other.getRow()))
+		err = &e
 	}
 
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
-	return val
+	return val, err
 }
 
 // Add prints SQL to add the index
-func (c *IndexSchema) Add() {
+func (c *IndexSchema) Add() []Stringer {
+	var strs []Stringer
 
 	schema := c.other.dbSchema
 	if schema == "*" {
@@ -142,8 +144,8 @@ func (c *IndexSchema) Add() {
 
 	// Assertion
 	if c.get("index_def") == "null" || len(c.get("index_def")) == 0 {
-		fmt.Printf("-- Add Unexpected situation in index.go: there is no index_def for %s.%s %s\n", schema, c.get("table_name"), c.get("index_name"))
-		return
+		strs = append(strs, Notice(fmt.Sprintf("-- Add Unexpected situation in index.go: there is no index_def for %s.%s %s", schema, c.get("table_name"), c.get("index_name"))))
+		return strs
 	}
 
 	// If we are comparing two different schemas against each other, we need to do some
@@ -157,51 +159,60 @@ func (c *IndexSchema) Add() {
 			-1)
 	}
 
-	fmt.Printf("%v;\n", indexDef)
+	strs = append(strs, Line(fmt.Sprintf("%v;", indexDef)))
 
 	if c.get("constraint_def") != "null" {
 		// Create the constraint using the index we just created
 		if c.get("pk") == "true" {
 			// Add primary key using the index
-			fmt.Printf("ALTER TABLE %s.%s ADD CONSTRAINT %s PRIMARY KEY USING INDEX %s; -- (1)\n", schema, c.get("table_name"), c.get("index_name"), c.get("index_name"))
+			strs = append(strs, Line(fmt.Sprintf("ALTER TABLE %s.%s ADD CONSTRAINT %s PRIMARY KEY USING INDEX %s; -- (1)", schema, c.get("table_name"), c.get("index_name"), c.get("index_name"))))
 		} else if c.get("uq") == "true" {
 			// Add unique constraint using the index
-			fmt.Printf("ALTER TABLE %s.%s ADD CONSTRAINT %s UNIQUE USING INDEX %s; -- (2)\n", schema, c.get("table_name"), c.get("index_name"), c.get("index_name"))
+			strs = append(strs, Line(fmt.Sprintf("ALTER TABLE %s.%s ADD CONSTRAINT %s UNIQUE USING INDEX %s; -- (2)", schema, c.get("table_name"), c.get("index_name"), c.get("index_name"))))
 		}
 	}
+	return strs
 }
 
 // Drop prints SQL to drop the index
-func (c *IndexSchema) Drop() {
+func (c *IndexSchema) Drop() []Stringer {
+	var strs []Stringer
 	if c.get("constraint_def") != "null" {
-		fmt.Println("-- Warning, this may drop foreign keys pointing at this column.  Make sure you re-run the FOREIGN_KEY diff after running this SQL.")
-		fmt.Printf("ALTER TABLE %s.%s DROP CONSTRAINT %s CASCADE; -- %s\n", c.get("schema_name"), c.get("table_name"), c.get("index_name"), c.get("constraint_def"))
+		strs = append(strs, Notice("-- Warning, this may drop foreign keys pointing at this column.  Make sure you re-run the FOREIGN_KEY diff after running this SQL."),
+			Line(fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s CASCADE; -- %s", c.get("schema_name"), c.get("table_name"), c.get("index_name"), c.get("constraint_def"))))
 	}
-	fmt.Printf("DROP INDEX %s.%s;\n", c.get("schema_name"), c.get("index_name"))
+	strs = append(strs, Line(fmt.Sprintf("DROP INDEX %s.%s;", c.get("schema_name"), c.get("index_name"))))
+	return strs
 }
 
 // Change handles the case where the table and column match, but the details do not
-func (c *IndexSchema) Change() {
+func (c *IndexSchema) Change() []Stringer {
+	var strs []Stringer
 
 	// Table and constraint name matches... We need to make sure the details match
 
 	// NOTE that there should always be an index_def for both c and c.other (but we're checking below anyway)
 	if len(c.get("index_def")) == 0 {
-		fmt.Printf("-- Change: Unexpected situation in index.go: index_def is empty for 1: %v  2:%v\n", c.getRow(), c.other.getRow())
-		return
+		strs = append(strs, Notice(fmt.Sprintf("-- Change: Unexpected situation in index.go: index_def is empty for 1: %v  2:%v", c.getRow(), c.other.getRow())))
+		return strs
 	}
 	if len(c.other.get("index_def")) == 0 {
-		fmt.Printf("-- Change: Unexpected situation in index.go: index_def is empty for 2: %v 1: %v\n", c.other.getRow(), c.getRow())
-		return
+		strs = append(strs, Notice(fmt.Sprintf("-- Change: Unexpected situation in index.go: index_def is empty for 2: %v 1: %v", c.other.getRow(), c.getRow())))
+		return strs
 	}
 
 	if c.get("constraint_def") != c.other.get("constraint_def") {
 		// c1.constraint and c.other.constraint are just different
-		fmt.Printf("-- CHANGE: Different defs on %s:\n--    %s\n--    %s\n", c.get("table_name"), c.get("constraint_def"), c.other.get("constraint_def"))
+		strs = append(strs,
+			Notice(fmt.Sprintf("-- CHANGE: Different defs on %s:", c.get("table_name"))),
+			Notice(fmt.Sprintf("--    %s", c.get("constraint_def"))),
+			Notice(fmt.Sprintf("--    %s", c.other.get("constraint_def"))),
+		)
+
 		if c.get("constraint_def") == "null" {
 			// c1.constraint does not exist, c.other.constraint does, so
 			// Drop constraint
-			fmt.Printf("DROP INDEX %s; -- %s \n", c.other.get("index_name"), c.other.get("index_def"))
+			strs = append(strs, Line(fmt.Sprintf("DROP INDEX %s; -- %s", c.other.get("index_name"), c.other.get("index_def"))))
 		} else if c.other.get("constraint_def") == "null" {
 			// c1.constraint exists, c.other.constraint does not, so
 			// Add constraint
@@ -210,25 +221,25 @@ func (c *IndexSchema) Change() {
 				// Add constraint using the index
 				if c.get("pk") == "true" {
 					// Add primary key using the index
-					fmt.Printf("ALTER TABLE %s ADD CONSTRAINT %s PRIMARY KEY USING INDEX %s; -- (3)\n", c.get("table_name"), c.get("index_name"), c.get("index_name"))
+					strs = append(strs, Line(fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s PRIMARY KEY USING INDEX %s; -- (3)", c.get("table_name"), c.get("index_name"), c.get("index_name"))))
 				} else if c.get("uq") == "true" {
 					// Add unique constraint using the index
-					fmt.Printf("ALTER TABLE %s ADD CONSTRAINT %s UNIQUE USING INDEX %s; -- (4)\n", c.get("table_name"), c.get("index_name"), c.get("index_name"))
+					strs = append(strs, Line(fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s UNIQUE USING INDEX %s; -- (4)", c.get("table_name"), c.get("index_name"), c.get("index_name"))))
 				} else {
 
 				}
 			} else {
 				// Drop the c.other index, create a copy of the c1 index
-				fmt.Printf("DROP INDEX %s; -- %s \n", c.other.get("index_name"), c.other.get("index_def"))
+				strs = append(strs, Line(fmt.Sprintf("DROP INDEX %s; -- %s", c.other.get("index_name"), c.other.get("index_def"))))
 			}
 			// WIP
-			//fmt.Printf("ALTER TABLE %s ADD CONSTRAINT %s %s;\n", c.get("table_name"), c.get("index_name"), c.get("constraint_def"))
+			//strs = append(strs, Line(fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s %s;\n", c.get("table_name"), c.get("index_name"), c.get("constraint_def"))))
 
 		} else if c.get("index_def") != c.other.get("index_def") {
 			// The constraints match
 		}
 
-		return
+		return strs
 	}
 
 	// At this point, we know that the constraint_def matches.  Compare the index_def
@@ -252,8 +263,12 @@ func (c *IndexSchema) Change() {
 		// The indexes do not match, but the constraints do
 		if !strings.HasPrefix(c.get("index_def"), c.other.get("index_def")) &&
 			!strings.HasPrefix(c.other.get("index_def"), c.get("index_def")) {
-			fmt.Println("--\n--CHANGE: index defs are different for identical constraint defs:")
-			fmt.Printf("--    %s\n--    %s\n", c.get("index_def"), c.other.get("index_def"))
+			strs = append(strs,
+				Notice("--"),
+				Notice("--CHANGE: index defs are different for identical constraint defs:"),
+				Notice(fmt.Sprintf("--    %s", c.get("index_def"))),
+				Notice(fmt.Sprintf("--    %s", c.other.get("index_def"))),
+			)
 
 			// Drop the index (and maybe the constraint) so we can recreate the index
 			c.Drop()
@@ -262,11 +277,11 @@ func (c *IndexSchema) Change() {
 			c.Add()
 		}
 	}
-
+	return strs
 }
 
 // CompareIndexes outputs Sql to make the indexes match between to DBs or schemas
-func CompareIndexes(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareIndexes(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 
 	buf1 := new(bytes.Buffer)
 	indexSqlTemplate.Execute(buf1, dbInfo1)
@@ -294,5 +309,5 @@ func CompareIndexes(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo
 	var schema2 Schema = &IndexSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	// Compare the indexes
-	doDiff(schema1, schema2)
+	return doDiff(schema1, schema2)
 }

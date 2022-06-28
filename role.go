@@ -74,16 +74,16 @@ func (c *RoleSchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *RoleSchema) Compare(obj interface{}) int {
+func (c *RoleSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*RoleSchema)
 	if !ok {
-		fmt.Println("Error!!!, change needs a RoleSchema instance", c2)
-		return +999
+		err := Error(fmt.Sprint("change needs a RoleSchema instance", c2))
+		return +999, &err
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("rolname"), c.other.get("rolname"))
-	return val
+	return val, nil
 }
 
 /*
@@ -110,7 +110,8 @@ where option can be:
 */
 
 // Add generates SQL to add the constraint/index
-func (c RoleSchema) Add() {
+func (c RoleSchema) Add() []Stringer {
+	var strs []Stringer
 
 	// We don't care about efficiency here so we just concat strings
 	options := " WITH PASSWORD 'changeme'"
@@ -152,16 +153,18 @@ func (c RoleSchema) Add() {
 		options += fmt.Sprintf(" VALID UNTIL '%s'", c.get("rolvaliduntil"))
 	}
 
-	fmt.Printf("CREATE ROLE %s%s;\n", c.get("rolname"), options)
+	strs = append(strs, Line(fmt.Sprintf("CREATE ROLE %s%s;", c.get("rolname"), options)))
+	return strs
 }
 
 // Drop generates SQL to drop the role
-func (c RoleSchema) Drop() {
-	fmt.Printf("DROP ROLE %s;\n", c.get("rolname"))
+func (c RoleSchema) Drop() []Stringer {
+	return []Stringer{Line(fmt.Sprintf("DROP ROLE %s;", c.get("rolname")))}
 }
 
 // Change handles the case where the role name matches, but the details do not
-func (c RoleSchema) Change() {
+func (c RoleSchema) Change() []Stringer {
+	var strs []Stringer
 
 	options := ""
 	if c.get("rolsuper") != c.other.get("rolsuper") {
@@ -234,11 +237,11 @@ func (c RoleSchema) Change() {
 
 	// Only alter if we have changes
 	if len(options) > 0 {
-		fmt.Printf("ALTER ROLE %s%s;\n", c.get("rolname"), options)
+		strs = append(strs, Line(fmt.Sprintf("ALTER ROLE %s%s;", c.get("rolname"), options)))
 	}
 
 	if c.get("memberof") != c.other.get("memberof") {
-		fmt.Println(c.get("memberof"), "!=", c.other.get("memberof"))
+		strs = append(strs, Line(fmt.Sprintln(c.get("memberof"), "!=", c.other.get("memberof"))))
 
 		// Remove the curly brackets
 		memberof1 := curlyBracketRegex.ReplaceAllString(c.get("memberof"), "")
@@ -251,23 +254,24 @@ func (c RoleSchema) Change() {
 		// TODO: Define INHERIT or not
 		for _, mo1 := range membersof1 {
 			if !misc.ContainsString(membersof2, mo1) {
-				fmt.Printf("GRANT %s TO %s;\n", mo1, c.get("rolename"))
+				strs = append(strs, Line(fmt.Sprintf("GRANT %s TO %s;", mo1, c.get("rolename"))))
 			}
 		}
 
 		for _, mo2 := range membersof2 {
 			if !misc.ContainsString(membersof1, mo2) {
-				fmt.Printf("REVOKE %s FROM %s;\n", mo2, c.get("rolename"))
+				strs = append(strs, Line(fmt.Sprintf("REVOKE %s FROM %s;", mo2, c.get("rolename"))))
 			}
 		}
 
 	}
+	return strs
 }
 
 /*
  * Compare the roles between two databases or schemas
  */
-func CompareRoles(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareRoles(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 	sql := `
 SELECT r.rolname
     , r.rolsuper
@@ -305,5 +309,5 @@ ORDER BY r.rolname;
 	var schema2 Schema = &RoleSchema{rows: rows2, rowNum: -1}
 
 	// Compare the roles
-	doDiff(schema1, schema2)
+	return doDiff(schema1, schema2)
 }

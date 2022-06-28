@@ -63,45 +63,44 @@ func (c *SchemataSchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *SchemataSchema) Compare(obj interface{}) int {
+func (c *SchemataSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*SchemataSchema)
 	if !ok {
-		fmt.Println("Error!!!, Compare(obj) needs a SchemataSchema instance", c2)
-		return +999
+		err := Error(fmt.Sprint("compare(obj) needs a SchemataSchema instance", c2))
+		return +999, &err
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("schema_name"), c.other.get("schema_name"))
-	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("schema_name"), c.other.get("schema_name"))
-	return val
+	//strs = append(strs, Line(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("schema_name"), c.other.get("schema_name"))))
+	return val, nil
 }
 
 // Add returns SQL to add the schemata
-func (c SchemataSchema) Add() {
+func (c SchemataSchema) Add() []Stringer {
 	// CREATE SCHEMA schema_name [ AUTHORIZATION user_name
-	fmt.Printf("CREATE SCHEMA %s AUTHORIZATION %s;", c.get("schema_name"), c.get("schema_owner"))
-	fmt.Println()
+	return []Stringer{Line(fmt.Sprintf("CREATE SCHEMA %s AUTHORIZATION %s;", c.get("schema_name"), c.get("schema_owner")))}
 }
 
 // Drop returns SQL to drop the schemata
-func (c SchemataSchema) Drop() {
+func (c SchemataSchema) Drop() []Stringer {
 	// DROP SCHEMA [ IF EXISTS ] name [, ...] [ CASCADE | RESTRICT ]
-	fmt.Printf("DROP SCHEMA IF EXISTS %s;\n", c.get("schema_name"))
+	return []Stringer{Line(fmt.Sprintf("DROP SCHEMA IF EXISTS %s;", c.get("schema_name")))}
 }
 
 // Change handles the case where the dbSchema name matches, but the details do not
-func (c SchemataSchema) Change() {
-
+func (c SchemataSchema) Change() []Stringer {
 	// There's nothing we need to do here
+	return nil
 }
 
 // CompareSchematas outputs SQL to make the dbSchema names match between DBs
-func CompareSchematas(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareSchematas(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 
 	// if we are comparing two schemas against each other, then
 	// we won't compare to ensure they are created, although maybe we should.
 	if dbInfo1.DbSchema != dbInfo2.DbSchema {
-		return
+		return nil
 	}
 
 	sql := `
@@ -133,5 +132,5 @@ ORDER BY schema_name;`
 	var schema2 Schema = &SchemataSchema{rows: rows2, rowNum: -1}
 
 	// Compare the schematas
-	doDiff(schema1, schema2)
+	return doDiff(schema1, schema2)
 }

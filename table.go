@@ -96,43 +96,41 @@ func (c *TableSchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *TableSchema) Compare(obj interface{}) int {
+func (c *TableSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*TableSchema)
 	if !ok {
-		fmt.Println("Error!!!, Compare(obj) needs a TableSchema instance", c2)
-		return +999
+		err := Error(fmt.Sprint("compare(obj) needs a TableSchema instance", c2))
+		return +999, &err
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
-	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("table_name"), c.other.get("table_name"))
-	return val
+	//strs = append(strs, Line(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("table_name"), c.other.get("table_name"))))
+	return val, nil
 }
 
 // Add returns SQL to add the table or view
-func (c TableSchema) Add() {
-
+func (c TableSchema) Add() []Stringer {
 	schema := c.other.dbSchema
 	if schema == "*" {
 		schema = c.get("table_schema")
 	}
-	fmt.Printf("CREATE %s %s.%s();", c.get("table_type"), schema, c.get("table_name"))
-	fmt.Println()
+	return []Stringer{Line(fmt.Sprintf("CREATE %s %s.%s();", c.get("table_type"), schema, c.get("table_name")))}
 }
 
 // Drop returns SQL to drop the table or view
-func (c TableSchema) Drop() {
-	fmt.Printf("DROP %s %s.%s;\n", c.get("table_type"), c.get("table_schema"), c.get("table_name"))
+func (c TableSchema) Drop() []Stringer {
+	return []Stringer{Line(fmt.Sprintf("DROP %s %s.%s;", c.get("table_type"), c.get("table_schema"), c.get("table_name")))}
 }
 
 // Change handles the case where the table and column match, but the details do not
-func (c TableSchema) Change() {
-
+func (c TableSchema) Change() []Stringer {
 	// There's nothing we need to do here
+	return nil
 }
 
 // CompareTables outputs SQL to make the table names match between DBs
-func CompareTables(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareTables(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 
 	buf1 := new(bytes.Buffer)
 	tableSqlTemplate.Execute(buf1, dbInfo1)
@@ -160,5 +158,5 @@ func CompareTables(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2
 	var schema2 Schema = &TableSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	// Compare the tables
-	doDiff(schema1, schema2)
+	return doDiff(schema1, schema2)
 }

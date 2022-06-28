@@ -63,40 +63,50 @@ func (c *MatViewSchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *MatViewSchema) Compare(obj interface{}) int {
+func (c *MatViewSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*MatViewSchema)
 	if !ok {
-		fmt.Println("Error!!!, Compare(obj) needs a MatViewSchema instance", c2)
-		return +999
+		err := Error(fmt.Sprint("compare(obj) needs a MatViewSchema instance", c2))
+		return +999, &err
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("matviewname"), c.other.get("matviewname"))
-	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("matviewname"), c.other.get("matviewname"))
-	return val
+	//strs = append(strs, Line(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("matviewname"), c.other.get("matviewname"))))
+	return val, nil
 }
 
 // Add returns SQL to create the matview
-func (c MatViewSchema) Add() {
-	fmt.Printf("CREATE MATERIALIZED VIEW %s AS %s \n\n%s \n\n", c.get("matviewname"), c.get("definition"), c.get("indexdef"))
-}
-
-// Drop returns SQL to drop the matview
-func (c MatViewSchema) Drop() {
-	fmt.Printf("DROP MATERIALIZED VIEW %s;\n\n", c.get("matviewname"))
-}
-
-// Change handles the case where the names match, but the definition does not
-func (c MatViewSchema) Change() {
-
-	if c.get("definition") != c.other.get("definition") {
-		fmt.Printf("DROP MATERIALIZED VIEW %s;\n\n", c.get("matviewname"))
-		fmt.Printf("CREATE MATERIALIZED VIEW %s AS %s \n\n%s \n\n", c.get("matviewname"), c.get("definition"), c.get("indexdef"))
+func (c MatViewSchema) Add() []Stringer {
+	return []Stringer{
+		Line(fmt.Sprintf("CREATE MATERIALIZED VIEW %s AS %s", c.get("matviewname"), c.get("definition"))),
+		Line(""),
+		Line(c.get("indexdef")),
+		Line(""),
 	}
 }
 
+// Drop returns SQL to drop the matview
+func (c MatViewSchema) Drop() []Stringer {
+	return []Stringer{Line(fmt.Sprintf("DROP MATERIALIZED VIEW %s;", c.get("matviewname")))}
+}
+
+// Change handles the case where the names match, but the definition does not
+func (c MatViewSchema) Change() []Stringer {
+	var strs []Stringer
+
+	if c.get("definition") != c.other.get("definition") {
+		strs = append(strs,
+			Line(fmt.Sprintf("DROP MATERIALIZED VIEW %s;", c.get("matviewname"))),
+			Line(fmt.Sprintf("CREATE MATERIALIZED VIEW %s AS %s", c.get("matviewname"), c.get("definition"))),
+			Line(c.get("indexdef")),
+		)
+	}
+	return strs
+}
+
 // CompareMatViews outputs SQL to make the matviews match between DBs
-func CompareMatViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareMatViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 	sql := `
 	WITH matviews as ( SELECT schemaname || '.' || matviewname AS matviewname,
 	definition
@@ -134,5 +144,5 @@ func CompareMatViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInf
 	var schema2 Schema = &MatViewSchema{rows: rows2, rowNum: -1}
 
 	// Compare the matviews
-	doDiff(schema1, schema2)
+	return doDiff(schema1, schema2)
 }

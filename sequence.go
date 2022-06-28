@@ -97,41 +97,40 @@ func (c *SequenceSchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *SequenceSchema) Compare(obj interface{}) int {
+func (c *SequenceSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*SequenceSchema)
 	if !ok {
-		fmt.Println("Error!!!, Compare(obj) needs a SequenceSchema instance", c2)
-		return +999
+		err := Error(fmt.Sprint("compare(obj) needs a SequenceSchema instance", c2))
+		return +999, &err
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
-	return val
+	return val, nil
 }
 
 // Add returns SQL to add the sequence
-func (c *SequenceSchema) Add() {
-
+func (c *SequenceSchema) Add() []Stringer {
 	schema := c.other.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
-	fmt.Printf("CREATE SEQUENCE %s.%s INCREMENT %s MINVALUE %s MAXVALUE %s START %s;\n", schema, c.get("sequence_name"), c.get("increment"), c.get("minimum_value"), c.get("maximum_value"), c.get("start_value"))
+	return []Stringer{Line(fmt.Sprintf("CREATE SEQUENCE %s.%s INCREMENT %s MINVALUE %s MAXVALUE %s START %s;", schema, c.get("sequence_name"), c.get("increment"), c.get("minimum_value"), c.get("maximum_value"), c.get("start_value")))}
 }
 
 // Drop returns SQL to drop the sequence
-func (c SequenceSchema) Drop() {
-	fmt.Printf("DROP SEQUENCE %s.%s;\n", c.get("schema_name"), c.get("sequence_name"))
+func (c SequenceSchema) Drop() []Stringer {
+	return []Stringer{Line(fmt.Sprintf("DROP SEQUENCE %s.%s;", c.get("schema_name"), c.get("sequence_name")))}
 }
 
 // Change doesn't do anything right now.
-func (c SequenceSchema) Change() {
-
+func (c SequenceSchema) Change() []Stringer {
 	// Don't know of anything helpful we should do here
+	return nil
 }
 
 // CompareSequences outputs SQL to make the sequences match between DBs or schemas
-func CompareSequences(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareSequences(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 
 	buf1 := new(bytes.Buffer)
 	sequenceSqlTemplate.Execute(buf1, dbInfo1)
@@ -159,5 +158,5 @@ func CompareSequences(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbIn
 	var schema2 Schema = &SequenceSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	// Compare the sequences
-	doDiff(schema1, schema2)
+	return doDiff(schema1, schema2)
 }

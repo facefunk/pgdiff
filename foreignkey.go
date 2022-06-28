@@ -108,49 +108,48 @@ func (c *ForeignKeySchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *ForeignKeySchema) Compare(obj interface{}) int {
+func (c *ForeignKeySchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*ForeignKeySchema)
 	if !ok {
-		fmt.Println("Error!!!, Compare(obj) needs a ForeignKeySchema instance", c2)
-		return +999
+		err := Error(fmt.Sprint("compare(obj) needs a ForeignKeySchema instance", c2))
+		return +999, &err
 	}
 	c.other = c2
 
-	//fmt.Printf("Comparing %s with %s", c.get("table_name"), c.other.get("table_name"))
+	//strs = append(strs, Line(fmt.Sprintf("Comparing %s with %s", c.get("table_name"), c.other.get("table_name"))))
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	if val != 0 {
-		return val
+		return val, nil
 	}
 
 	val = misc.CompareStrings(c.get("constraint_def"), c.other.get("constraint_def"))
-	return val
+	return val, nil
 }
 
 // Add returns SQL to add the foreign key
-func (c *ForeignKeySchema) Add() {
-
+func (c *ForeignKeySchema) Add() []Stringer {
 	schema := c.other.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
-	fmt.Printf("ALTER TABLE %s.%s ADD CONSTRAINT %s %s;\n", schema, c.get("table_name"), c.get("fk_name"), c.get("constraint_def"))
+	return []Stringer{Line(fmt.Sprintf("ALTER TABLE %s.%s ADD CONSTRAINT %s %s;", schema, c.get("table_name"), c.get("fk_name"), c.get("constraint_def")))}
 }
 
 // Drop returns SQL to drop the foreign key
-func (c ForeignKeySchema) Drop() {
-	fmt.Printf("ALTER TABLE %s.%s DROP CONSTRAINT %s; -- %s\n", c.get("schema_name"), c.get("table_name"), c.get("fk_name"), c.get("constraint_def"))
+func (c ForeignKeySchema) Drop() []Stringer {
+	return []Stringer{Line(fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s; -- %s", c.get("schema_name"), c.get("table_name"), c.get("fk_name"), c.get("constraint_def")))}
 }
 
 // Change handles the case where the table and foreign key name, but the details do not
-func (c *ForeignKeySchema) Change() {
-
+func (c *ForeignKeySchema) Change() []Stringer {
 	// There is no "changing" a foreign key.  It either gets created or dropped (or left as-is).
+	return nil
 }
 
 /*
  * Compare the foreign keys in the two databases.
  */
-func CompareForeignKeys(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareForeignKeys(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 
 	buf1 := new(bytes.Buffer)
 	foreignKeySqlTemplate.Execute(buf1, dbInfo1)
@@ -178,5 +177,5 @@ func CompareForeignKeys(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, db
 	var schema2 Schema = &ForeignKeySchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	// Compare the foreign keys
-	doDiff(schema1, schema2)
+	return doDiff(schema1, schema2)
 }

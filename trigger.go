@@ -96,20 +96,46 @@ func (c *TriggerSchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *TriggerSchema) Compare(obj interface{}) int {
+func (c *TriggerSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*TriggerSchema)
 	if !ok {
-		fmt.Println("Error!!!, Compare(obj) needs a TriggerSchema instance", c2)
-		return +999
+		err := Error(fmt.Sprint("compare(obj) needs a TriggerSchema instance", c2))
+		return +999, &err
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
-	return val
+	return val, nil
 }
 
 // Add returns SQL to create the trigger
-func (c TriggerSchema) Add() {
+func (c TriggerSchema) Add() []Stringer {
+	// If we are comparing two different schemas against each other, we need to do some
+	// modification of the first trigger definition so we create it in the right dbSchema
+	triggerDef := c.get("trigger_def")
+	schemaName := c.get("schema_name")
+	if c.dbSchema != c.other.dbSchema {
+		schemaName = c.other.dbSchema
+		triggerDef = strings.Replace(
+			triggerDef,
+			fmt.Sprintf(" %s.%s ", c.get("schema_name"), c.get("table_name")),
+			fmt.Sprintf(" %s.%s ", schemaName, c.get("table_name")),
+			-1)
+	}
+
+	return []Stringer{Line(fmt.Sprintf("%s;", triggerDef))}
+}
+
+// Drop returns SQL to drop the trigger
+func (c TriggerSchema) Drop() []Stringer {
+	return []Stringer{Line(fmt.Sprintf("DROP TRIGGER %s ON %s.%s;", c.get("trigger_name"), c.get("schema_name"), c.get("table_name")))}
+}
+
+// Change handles the case where the trigger names match, but the definition does not
+func (c *TriggerSchema) Change() []Stringer {
+	if c.get("trigger_def") == c.other.get("trigger_def") {
+		return nil
+	}
 
 	// If we are comparing two different schemas against each other, we need to do some
 	// modification of the first trigger definition so we create it in the right dbSchema
@@ -124,43 +150,18 @@ func (c TriggerSchema) Add() {
 			-1)
 	}
 
-	fmt.Printf("%s;\n", triggerDef)
-}
-
-// Drop returns SQL to drop the trigger
-func (c TriggerSchema) Drop() {
-	fmt.Printf("DROP TRIGGER %s ON %s.%s;\n", c.get("trigger_name"), c.get("schema_name"), c.get("table_name"))
-}
-
-// Change handles the case where the trigger names match, but the definition does not
-func (c *TriggerSchema) Change() {
-
-	if c.get("trigger_def") != c.other.get("trigger_def") {
-		fmt.Println("-- This function looks different so we'll drop and recreate it:")
-
-		// If we are comparing two different schemas against each other, we need to do some
-		// modification of the first trigger definition so we create it in the right dbSchema
-		triggerDef := c.get("trigger_def")
-		schemaName := c.get("schema_name")
-		if c.dbSchema != c.other.dbSchema {
-			schemaName = c.other.dbSchema
-			triggerDef = strings.Replace(
-				triggerDef,
-				fmt.Sprintf(" %s.%s ", c.get("schema_name"), c.get("table_name")),
-				fmt.Sprintf(" %s.%s ", schemaName, c.get("table_name")),
-				-1)
-		}
-
-		// The trigger_def column has everything needed to rebuild the function
-		fmt.Printf("DROP TRIGGER %s ON %s.%s;\n", c.get("trigger_name"), schemaName, c.get("table_name"))
-		fmt.Println("-- STATEMENT-BEGIN")
-		fmt.Printf("%s;\n", triggerDef)
-		fmt.Println("-- STATEMENT-END")
+	// The trigger_def column has everything needed to rebuild the function
+	return []Stringer{
+		Notice("-- This function looks different so we'll drop and recreate it:"),
+		Line(fmt.Sprintf("DROP TRIGGER %s ON %s.%s;", c.get("trigger_name"), schemaName, c.get("table_name"))),
+		Notice("-- STATEMENT-BEGIN"),
+		Line(fmt.Sprintf("%s;", triggerDef)),
+		Notice("-- STATEMENT-END"),
 	}
 }
 
 // CompareTriggers outputs SQL to make the triggers match between DBs
-func CompareTriggers(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareTriggers(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 
 	buf1 := new(bytes.Buffer)
 	triggerSqlTemplate.Execute(buf1, dbInfo1)
@@ -188,5 +189,5 @@ func CompareTriggers(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInf
 	var schema2 Schema = &TriggerSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
 	// Compare the triggers
-	doDiff(schema1, schema2)
+	return doDiff(schema1, schema2)
 }

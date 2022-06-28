@@ -125,48 +125,55 @@ func (c *GrantRelationshipSchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *GrantRelationshipSchema) Compare(obj interface{}) int {
+func (c *GrantRelationshipSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*GrantRelationshipSchema)
 	if !ok {
-		fmt.Println("Error!!!, Compare needs a GrantRelationshipSchema instance", c2)
-		return +999
+		err := Error(fmt.Sprint("compare needs a GrantRelationshipSchema instance", c2))
+		return +999, &err
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	if val != 0 {
-		return val
+		return val, nil
 	}
 
 	relRole1, _ := parseAcl(c.get("relationship_acl"))
 	relRole2, _ := parseAcl(c.other.get("relationship_acl"))
 	val = misc.CompareStrings(relRole1, relRole2)
-	return val
+	return val, nil
 }
 
 // Add prints SQL to add the grant
-func (c *GrantRelationshipSchema) Add() {
-
+func (c *GrantRelationshipSchema) Add() []Stringer {
 	schema := c.other.dbSchema
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
-
-	role, grants := parseGrants(c.get("relationship_acl"))
-	fmt.Printf("GRANT %s ON %s.%s TO %s; -- Add\n", strings.Join(grants, ", "), schema, c.get("relationship_name"), role)
+	var strs []Stringer
+	role, grants, errs := parseGrants(c.get("relationship_acl"))
+	strs = append(strs, errs...)
+	strs = append(strs, Line(fmt.Sprintf("GRANT %s ON %s.%s TO %s; -- Add", strings.Join(grants, ", "), schema, c.get("relationship_name"), role)))
+	return strs
 }
 
 // Drop prints SQL to drop the grant
-func (c *GrantRelationshipSchema) Drop() {
-	role, grants := parseGrants(c.get("relationship_acl"))
-	fmt.Printf("REVOKE %s ON %s.%s FROM %s; -- Drop\n", strings.Join(grants, ", "), c.get("schema_name"), c.get("relationship_name"), role)
+func (c *GrantRelationshipSchema) Drop() []Stringer {
+	var strs []Stringer
+	role, grants, errs := parseGrants(c.get("relationship_acl"))
+	strs = append(strs, errs...)
+	strs = append(strs, Line(fmt.Sprintf("REVOKE %s ON %s.%s FROM %s; -- Drop", strings.Join(grants, ", "), c.get("schema_name"), c.get("relationship_name"), role)))
+	return strs
 }
 
 // Change handles the case where the relationship and column match, but the grant does not
-func (c *GrantRelationshipSchema) Change() {
+func (c *GrantRelationshipSchema) Change() []Stringer {
+	var strs []Stringer
 
-	role, grants1 := parseGrants(c.get("relationship_acl"))
-	_, grants2 := parseGrants(c.other.get("relationship_acl"))
+	role, grants1, errs := parseGrants(c.get("relationship_acl"))
+	strs = append(strs, errs...)
+	_, grants2, errs := parseGrants(c.other.get("relationship_acl"))
+	strs = append(strs, errs...)
 
 	// Find grants in the first db that are not in the second
 	// (for this relationship and owner)
@@ -177,7 +184,7 @@ func (c *GrantRelationshipSchema) Change() {
 		}
 	}
 	if len(grantList) > 0 {
-		fmt.Printf("GRANT %s ON %s.%s TO %s; -- Change\n", strings.Join(grantList, ", "), c.other.get("schema_name"), c.get("relationship_name"), role)
+		strs = append(strs, Line(fmt.Sprintf("GRANT %s ON %s.%s TO %s; -- Change", strings.Join(grantList, ", "), c.other.get("schema_name"), c.get("relationship_name"), role)))
 	}
 
 	// Find grants in the second db that are not in the first
@@ -189,11 +196,12 @@ func (c *GrantRelationshipSchema) Change() {
 		}
 	}
 	if len(revokeList) > 0 {
-		fmt.Printf("REVOKE %s ON %s.%s FROM %s; -- Change\n", strings.Join(revokeList, ", "), c.other.get("schema_name"), c.get("relationship_name"), role)
+		strs = append(strs, Line(fmt.Sprintf("REVOKE %s ON %s.%s FROM %s; -- Change", strings.Join(revokeList, ", "), c.other.get("schema_name"), c.get("relationship_name"), role)))
 	}
 
-	//	fmt.Printf("--1 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.get("relationship_name"), c.get("relationship_acl"), c.get("column_name"), c.get("column_acl"))
-	//	fmt.Printf("--2 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.other.get("relationship_name"), c.other.get("relationship_acl"), c.other.get("column_name"), c.other.get("column_acl"))
+	//	strs = append(strs, Line(fmt.Sprintf("--1 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.get("relationship_name"), c.get("relationship_acl"), c.get("column_name"), c.get("column_acl"))))
+	//	strs = append(strs, Line(fmt.Sprintf("--2 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.other.get("relationship_name"), c.other.get("relationship_acl"), c.other.get("column_name"), c.other.get("column_acl"))))
+	return strs
 }
 
 // ==================================
@@ -201,7 +209,7 @@ func (c *GrantRelationshipSchema) Change() {
 // ==================================
 
 // CompareGrantRelationships outputs SQL to make the granted permissions match between DBs or schemas
-func CompareGrantRelationships(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareGrantRelationships(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 
 	buf1 := new(bytes.Buffer)
 	grantRelationshipSqlTemplate.Execute(buf1, dbInfo1)
@@ -228,5 +236,5 @@ func CompareGrantRelationships(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbI
 	var schema1 Schema = &GrantRelationshipSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo1.DbSchema}
 	var schema2 Schema = &GrantRelationshipSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
 
-	doDiff(schema1, schema2)
+	return doDiff(schema1, schema2)
 }

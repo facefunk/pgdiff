@@ -63,40 +63,43 @@ func (c *ViewSchema) NextRow() bool {
 }
 
 // Compare tells you, in one pass, whether or not the first row matches, is less than, or greater than the second row
-func (c *ViewSchema) Compare(obj interface{}) int {
+func (c *ViewSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*ViewSchema)
 	if !ok {
-		fmt.Println("Error!!!, Compare(obj) needs a ViewSchema instance", c2)
-		return +999
+		err := Error(fmt.Sprint("compare(obj) needs a ViewSchema instance", c2))
+		return +999, &err
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("viewname"), c.other.get("viewname"))
-	//fmt.Printf("-- Compared %v: %s with %s \n", val, c.get("viewname"), c.other.get("viewname"))
-	return val
+	//strs = append(strs, Line(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("viewname"), c.other.get("viewname"))))
+	return val, nil
 }
 
 // Add returns SQL to create the view
-func (c ViewSchema) Add() {
-	fmt.Printf("CREATE VIEW %s AS %s \n\n", c.get("viewname"), c.get("definition"))
+func (c ViewSchema) Add() []Stringer {
+	return []Stringer{Line(fmt.Sprintf("CREATE VIEW %s AS %s", c.get("viewname"), c.get("definition")))}
 }
 
 // Drop returns SQL to drop the view
-func (c ViewSchema) Drop() {
-	fmt.Printf("DROP VIEW %s;\n\n", c.get("viewname"))
+func (c ViewSchema) Drop() []Stringer {
+	return []Stringer{Line(fmt.Sprintf("DROP VIEW %s;", c.get("viewname")))}
 }
 
 // Change handles the case where the names match, but the definition does not
-func (c ViewSchema) Change() {
-
+func (c ViewSchema) Change() []Stringer {
 	if c.get("definition") != c.other.get("definition") {
-		fmt.Printf("DROP VIEW %s;\n", c.get("viewname"))
-		fmt.Printf("CREATE VIEW %s AS %s \n\n", c.get("viewname"), c.get("definition"))
+		return nil
+	}
+
+	return []Stringer{
+		Line(fmt.Sprintf("DROP VIEW %s;", c.get("viewname"))),
+		Line(fmt.Sprintf("CREATE VIEW %s AS %s", c.get("viewname"), c.get("definition"))),
 	}
 }
 
 // CompareViews outputs SQL to make the views match between DBs
-func CompareViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) {
+func CompareViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
 	sql := `
 	SELECT schemaname || '.' || viewname AS viewname
 		, definition 
@@ -125,5 +128,5 @@ func CompareViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 
 	var schema2 Schema = &ViewSchema{rows: rows2, rowNum: -1}
 
 	// Compare the views
-	doDiff(schema1, schema2)
+	return doDiff(schema1, schema2)
 }
