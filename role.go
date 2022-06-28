@@ -268,11 +268,9 @@ func (c RoleSchema) Change() []Stringer {
 	return strs
 }
 
-/*
- * Compare the roles between two databases or schemas
- */
+// CompareRoles compares the roles between two databases or schemas.
 func CompareRoles(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-	sql := `
+	query := `
 SELECT r.rolname
     , r.rolsuper
     , r.rolinherit
@@ -289,8 +287,8 @@ SELECT r.rolname
 FROM pg_catalog.pg_roles AS r
 ORDER BY r.rolname;
 `
-	rowChan1, _ := pgutil.QueryStrings(conn1, sql)
-	rowChan2, _ := pgutil.QueryStrings(conn2, sql)
+	rowChan1, _ := pgutil.QueryStrings(conn1, query)
+	rowChan2, _ := pgutil.QueryStrings(conn2, query)
 
 	rows1 := make(RoleRows, 0)
 	for row := range rowChan1 {

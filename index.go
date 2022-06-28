@@ -24,7 +24,7 @@ var (
 
 // Initializes the Sql template
 func initIndexSqlTemplate() *template.Template {
-	sql := `
+	query := `
 SELECT {{if eq $.DbSchema "*" }}n.nspname || '.' || {{end}}c.relname || '.' || c2.relname AS compare_name
     , n.nspname AS schema_name
     , c.relname AS table_name
@@ -49,7 +49,7 @@ AND n.nspname = '{{$.DbSchema}}'
 {{end}}
 `
 	t := template.New("IndexSqlTmpl")
-	template.Must(t.Parse(sql))
+	template.Must(t.Parse(query))
 	return t
 }
 
@@ -149,7 +149,7 @@ func (c *IndexSchema) Add() []Stringer {
 	}
 
 	// If we are comparing two different schemas against each other, we need to do some
-	// modification of the first index_def so we create the index in the write dbSchema
+	// modification of the first index_def, so we create the index in the dbSchema we're writing to.
 	indexDef := c.get("index_def")
 	if c.dbSchema != c.other.dbSchema {
 		indexDef = strings.Replace(
@@ -248,7 +248,7 @@ func (c *IndexSchema) Change() []Stringer {
 	indexDef2 := c.other.get("index_def")
 
 	// If we are comparing two different schemas against each other, we need to do
-	// some modification of the first index_def so it looks more like the second
+	// some modification of the first index_def, so it looks more like the second
 	if c.dbSchema != c.other.dbSchema {
 		indexDef1 = strings.Replace(
 			indexDef1,
@@ -282,12 +282,20 @@ func (c *IndexSchema) Change() []Stringer {
 
 // CompareIndexes outputs Sql to make the indexes match between to DBs or schemas
 func CompareIndexes(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-
+	var errs []Stringer
 	buf1 := new(bytes.Buffer)
-	indexSqlTemplate.Execute(buf1, dbInfo1)
-
+	err := indexSqlTemplate.Execute(buf1, dbInfo1)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
 	buf2 := new(bytes.Buffer)
-	indexSqlTemplate.Execute(buf2, dbInfo2)
+	err = indexSqlTemplate.Execute(buf2, dbInfo2)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
 	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())

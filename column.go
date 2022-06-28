@@ -25,7 +25,7 @@ var (
 
 // Initializes the Sql template
 func initColumnSqlTemplate() *template.Template {
-	sql := `
+	query := `
 SELECT table_schema
     ,  {{if eq $.DbSchema "*" }}table_schema || '.' || {{end}}table_name || '.' ||lpad(cast (ordinal_position as varchar), 5, '0')|| column_name AS compare_name
 	, table_name
@@ -48,7 +48,7 @@ AND table_schema = '{{$.DbSchema}}'
 ORDER BY compare_name ASC;
 `
 	t := template.New("ColumnSqlTmpl")
-	template.Must(t.Parse(sql))
+	template.Must(t.Parse(query))
 	return t
 }
 
@@ -58,7 +58,7 @@ var (
 
 // Initializes the Sql template
 func initTableColumnSqlTemplate() *template.Template {
-	sql := `
+	query := `
 SELECT a.table_schema
     , {{if eq $.DbSchema "*" }}a.table_schema || '.' || {{end}}a.table_name || '.' || column_name  AS compare_name
 	, a.table_name
@@ -79,13 +79,10 @@ AND a.table_schema <> 'information_schema'
 {{else}}
 AND a.table_schema = '{{$.DbSchema}}'
 {{end}}
-{{ if $.TableType }}
-AND b.table_type = '{{ $.TableType }}'
-{{ end }}
 ORDER BY compare_name ASC;
 `
 	t := template.New("ColumnSqlTmpl")
-	template.Must(t.Parse(sql))
+	template.Must(t.Parse(query))
 	return t
 }
 
@@ -311,11 +308,20 @@ func (c *ColumnSchema) Change() []Stringer {
 
 // compare outputs SQL to make the columns match between two databases or schemas
 func compare(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo, tpl *template.Template) []Stringer {
+	var errs []Stringer
 	buf1 := new(bytes.Buffer)
-	tpl.Execute(buf1, dbInfo1)
-
+	err := tpl.Execute(buf1, dbInfo1)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
 	buf2 := new(bytes.Buffer)
-	tpl.Execute(buf2, dbInfo2)
+	err = tpl.Execute(buf2, dbInfo2)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
 	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())

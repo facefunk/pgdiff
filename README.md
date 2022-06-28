@@ -18,7 +18,7 @@ pgdiff is written to be easy to expand and improve the accuracy of the diff.
 
 There seems to be an ideal order for running the different schema types.  This order should minimize the problems you encounter.  For example, you will always want to add new tables before you add new columns.
 
-In addition, some types can have dependencies which are not in the right order.  A classic case is views which depend on other views.  The missing view SQL is generated in alphabetical order so if a view create fails due to a missing view, just run the views SQL file over again. The pgdiff.sh script will prompt you about running it again.
+In addition, some types can have dependencies which are not in the right order.  A classic case is views which depend on other views.  The missing view SQL is generated in alphabetical order so if a view create fails due to a missing view, just run the view SQL file over again. The pgdiff.sh script will prompt you about running it again.
  
 Schema type ordering:
 
@@ -81,14 +81,14 @@ linux and osx binaries are packaged with an extra, optional bash script and pgru
 1. review the SQL output for each schema type and, if you want to make them match, run it against the second db
 
 
-### getting started on windows
+### getting started on Windows
 
-1. download pgdiff.exe from the bin-win directory on github
+1. download pgdiff.exe from the bin-win directory on GitHub
 1. either install cygwin so you can run pgdiff.sh or...
 1. manually run pgdiff.exe for each schema type listed in the usage section above
 1. review the SQL output and, if you want to make them match, run it against the second db
 
-This project works on Windows, just not as nicely as it does for Linux and Mac.  If you are inclined to write a Windows complement to the pgdiff.sh script, feel free to contribute it or we can link to it.  Even better would be a replacement written in Go.
+This project works on Windows, just not as nicely as it does for Linux and Mac.  If you are inclined to write a Windows complement to the pgdiff.sh script, feel free to contribute it, or we can link to it.  Even better would be a replacement written in Go.
 
 
 ### version history
@@ -103,6 +103,6 @@ If you think you found a bug, it might help replicate it if you find the appropr
 
 ### todo
 * fix SQL for adding an array column
-* create windows version of pgdiff.sh (or even better: re-write it all in Go)
+* create Windows version of pgdiff.sh (or even better: re-write it all in Go)
 * allow editing of individual SQL lines after failure (this would probably be done in the script pgdiff.sh)
 * store failed SQL statements in an error file for later fixing and rerunning?

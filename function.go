@@ -24,7 +24,7 @@ var (
 
 // Initializes the Sql template
 func initFunctionSqlTemplate() *template.Template {
-	sql := `
+	query := `
     SELECT n.nspname                 AS schema_name
         , {{if eq $.DbSchema "*" }}n.nspname || '.' || {{end}}p.proname AS compare_name
         , p.proname                  AS function_name
@@ -44,7 +44,7 @@ func initFunctionSqlTemplate() *template.Template {
     {{end}};
 	`
 	t := template.New("FunctionSqlTmpl")
-	template.Must(t.Parse(sql))
+	template.Must(t.Parse(query))
 	return t
 }
 
@@ -113,7 +113,7 @@ func (c *FunctionSchema) Compare(obj Schema) (int, *Error) {
 // Add returns SQL to create the function
 func (c *FunctionSchema) Add() []Stringer {
 	// If we are comparing two different schemas against each other, we need to do some
-	// modification of the first function definition so we create it in the right dbSchema
+	// modification of the first function definition, so we create it in the right dbSchema
 	functionDef := c.get("definition")
 	if c.schema != c.other.schema {
 		functionDef = strings.Replace(
@@ -147,7 +147,7 @@ func (c FunctionSchema) Change() []Stringer {
 	}
 
 	// If we are comparing two different schemas against each other, we need to do some
-	// modification of the first function definition so we create it in the right dbSchema
+	// modification of the first function definition, so we create it in the right dbSchema
 	functionDef := c.get("definition")
 	if c.schema != c.other.schema {
 		functionDef = strings.Replace(
@@ -172,12 +172,20 @@ func (c FunctionSchema) Change() []Stringer {
 
 // CompareFunctions outputs SQL to make the functions match between DBs
 func CompareFunctions(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-
+	var errs []Stringer
 	buf1 := new(bytes.Buffer)
-	functionSqlTemplate.Execute(buf1, dbInfo1)
-
+	err := functionSqlTemplate.Execute(buf1, dbInfo1)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
 	buf2 := new(bytes.Buffer)
-	functionSqlTemplate.Execute(buf2, dbInfo2)
+	err = functionSqlTemplate.Execute(buf2, dbInfo2)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
 	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())

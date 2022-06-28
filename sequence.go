@@ -23,7 +23,7 @@ var (
 
 // Initializes the Sql template
 func initSequenceSqlTemplate() *template.Template {
-	sql := `
+	query := `
 SELECT sequence_schema AS schema_name
     , {{if eq $.DbSchema "*" }}sequence_schema || '.' || {{end}}sequence_name AS compare_name
     , sequence_name 
@@ -44,7 +44,7 @@ AND sequence_schema = '{{$.DbSchema}}'
 `
 
 	t := template.New("SequenceSqlTmpl")
-	template.Must(t.Parse(sql))
+	template.Must(t.Parse(query))
 	return t
 }
 
@@ -131,12 +131,20 @@ func (c SequenceSchema) Change() []Stringer {
 
 // CompareSequences outputs SQL to make the sequences match between DBs or schemas
 func CompareSequences(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-
+	var errs []Stringer
 	buf1 := new(bytes.Buffer)
-	sequenceSqlTemplate.Execute(buf1, dbInfo1)
-
+	err := sequenceSqlTemplate.Execute(buf1, dbInfo1)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
 	buf2 := new(bytes.Buffer)
-	sequenceSqlTemplate.Execute(buf2, dbInfo2)
+	err = sequenceSqlTemplate.Execute(buf2, dbInfo2)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
 	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())

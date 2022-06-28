@@ -23,7 +23,7 @@ var (
 
 // Initializes the Sql template
 func initForeignKeySqlTemplate() *template.Template {
-	sql := `
+	query := `
 SELECT {{if eq $.DbSchema "*" }}ns.nspname || '.' || {{end}}cl.relname || '.' || c.conname AS compare_name
     , ns.nspname AS schema_name
 	, cl.relname AS table_name
@@ -41,7 +41,7 @@ AND ns.nspname = '{{$.DbSchema}}'
 {{end}}
 `
 	t := template.New("ForeignKeySqlTmpl")
-	template.Must(t.Parse(sql))
+	template.Must(t.Parse(query))
 	return t
 }
 
@@ -146,16 +146,22 @@ func (c *ForeignKeySchema) Change() []Stringer {
 	return nil
 }
 
-/*
- * Compare the foreign keys in the two databases.
- */
+// CompareForeignKeys compares the foreign keys in the two databases.
 func CompareForeignKeys(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-
+	var errs []Stringer
 	buf1 := new(bytes.Buffer)
-	foreignKeySqlTemplate.Execute(buf1, dbInfo1)
-
+	err := foreignKeySqlTemplate.Execute(buf1, dbInfo1)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
 	buf2 := new(bytes.Buffer)
-	foreignKeySqlTemplate.Execute(buf2, dbInfo2)
+	err = foreignKeySqlTemplate.Execute(buf2, dbInfo2)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
 	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())

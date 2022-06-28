@@ -103,7 +103,7 @@ func CompareSchematas(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbIn
 		return nil
 	}
 
-	sql := `
+	query := `
 SELECT schema_name
     , schema_owner
     , default_character_set_schema
@@ -112,8 +112,8 @@ WHERE schema_name NOT LIKE 'pg_%'
   AND schema_name <> 'information_schema' 
 ORDER BY schema_name;`
 
-	rowChan1, _ := pgutil.QueryStrings(conn1, sql)
-	rowChan2, _ := pgutil.QueryStrings(conn2, sql)
+	rowChan1, _ := pgutil.QueryStrings(conn1, query)
+	rowChan2, _ := pgutil.QueryStrings(conn2, query)
 
 	rows1 := make(SchemataRows, 0)
 	for row := range rowChan1 {

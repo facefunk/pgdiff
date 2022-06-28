@@ -23,7 +23,7 @@ var (
 
 // Initializes the Sql template
 func initOwnerSqlTemplate() *template.Template {
-	sql := `
+	query := `
 SELECT n.nspname AS schema_name
     , {{if eq $.DbSchema "*" }}n.nspname || '.' || {{end}}c.relname || '.' || c.relname AS compare_name
     , c.relname AS relationship_name
@@ -45,7 +45,7 @@ AND n.nspname = '{{$.DbSchema}}'
 ;`
 
 	t := template.New("OwnerSqlTmpl")
-	template.Must(t.Parse(sql))
+	template.Must(t.Parse(query))
 	return t
 }
 
@@ -115,7 +115,6 @@ func (c *OwnerSchema) Compare(obj Schema) (int, *Error) {
 		return +999, &err
 	}
 	c.other = c2
-	c.other = c.other
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	return val, nil
 }
@@ -140,12 +139,20 @@ func (c OwnerSchema) Change() []Stringer {
 
 // CompareOwners compares the ownership of tables, sequences, and views between two databases or schemas
 func CompareOwners(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-
+	var errs []Stringer
 	buf1 := new(bytes.Buffer)
-	ownerSqlTemplate.Execute(buf1, dbInfo1)
-
+	err := ownerSqlTemplate.Execute(buf1, dbInfo1)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
 	buf2 := new(bytes.Buffer)
-	ownerSqlTemplate.Execute(buf2, dbInfo2)
+	err = ownerSqlTemplate.Execute(buf2, dbInfo2)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
 	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())

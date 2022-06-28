@@ -107,7 +107,7 @@ func (c MatViewSchema) Change() []Stringer {
 
 // CompareMatViews outputs SQL to make the matviews match between DBs
 func CompareMatViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-	sql := `
+	query := `
 	WITH matviews as ( SELECT schemaname || '.' || matviewname AS matviewname,
 	definition
 	FROM pg_catalog.pg_matviews 
@@ -124,8 +124,8 @@ func CompareMatViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInf
 	matviewname;
 	`
 
-	rowChan1, _ := pgutil.QueryStrings(conn1, sql)
-	rowChan2, _ := pgutil.QueryStrings(conn2, sql)
+	rowChan1, _ := pgutil.QueryStrings(conn1, query)
+	rowChan2, _ := pgutil.QueryStrings(conn2, query)
 
 	rows1 := make(MatViewRows, 0)
 	for row := range rowChan1 {

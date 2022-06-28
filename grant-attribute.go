@@ -24,7 +24,7 @@ var (
 
 // Initializes the Sql template
 func initGrantAttributeSqlTemplate() *template.Template {
-	sql := `
+	query := `
 -- Attribute/Column ACL only
 SELECT
   n.nspname AS schema_name
@@ -54,7 +54,7 @@ AND n.nspname = '{{ $.DbSchema }}'
 `
 
 	t := template.New("GrantAttributeSqlTmpl")
-	template.Must(t.Parse(sql))
+	template.Must(t.Parse(query))
 	return t
 }
 
@@ -218,12 +218,20 @@ func (c *GrantAttributeSchema) Change() []Stringer {
 
 // CompareGrantAttributes outputs SQL to make the granted permissions match between DBs or schemas
 func CompareGrantAttributes(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-
+	var errs []Stringer
 	buf1 := new(bytes.Buffer)
-	grantAttributeSqlTemplate.Execute(buf1, dbInfo1)
-
+	err := grantAttributeSqlTemplate.Execute(buf1, dbInfo1)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
 	buf2 := new(bytes.Buffer)
-	grantAttributeSqlTemplate.Execute(buf2, dbInfo2)
+	err = grantAttributeSqlTemplate.Execute(buf2, dbInfo2)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
 	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())

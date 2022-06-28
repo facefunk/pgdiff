@@ -100,7 +100,7 @@ func (c ViewSchema) Change() []Stringer {
 
 // CompareViews outputs SQL to make the views match between DBs
 func CompareViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-	sql := `
+	query := `
 	SELECT schemaname || '.' || viewname AS viewname
 		, definition 
 	FROM pg_views 
@@ -108,8 +108,8 @@ func CompareViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 
 	ORDER BY viewname;
 	`
 
-	rowChan1, _ := pgutil.QueryStrings(conn1, sql)
-	rowChan2, _ := pgutil.QueryStrings(conn2, sql)
+	rowChan1, _ := pgutil.QueryStrings(conn1, query)
+	rowChan2, _ := pgutil.QueryStrings(conn2, query)
 
 	rows1 := make(ViewRows, 0)
 	for row := range rowChan1 {

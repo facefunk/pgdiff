@@ -24,7 +24,7 @@ var (
 
 // Initializes the Sql template
 func initTriggerSqlTemplate() *template.Template {
-	sql := `
+	query := `
     SELECT n.nspname AS schema_name
        , {{if eq $.DbSchema "*" }}n.nspname || '.' || {{end}}c.relname || '.' || t.tgname AS compare_name
        , c.relname AS table_name
@@ -43,7 +43,7 @@ func initTriggerSqlTemplate() *template.Template {
     {{end}}
 	`
 	t := template.New("TriggerSqlTmpl")
-	template.Must(t.Parse(sql))
+	template.Must(t.Parse(query))
 	return t
 }
 
@@ -111,7 +111,7 @@ func (c *TriggerSchema) Compare(obj Schema) (int, *Error) {
 // Add returns SQL to create the trigger
 func (c TriggerSchema) Add() []Stringer {
 	// If we are comparing two different schemas against each other, we need to do some
-	// modification of the first trigger definition so we create it in the right dbSchema
+	// modification of the first trigger definition, so we create it in the right dbSchema
 	triggerDef := c.get("trigger_def")
 	schemaName := c.get("schema_name")
 	if c.dbSchema != c.other.dbSchema {
@@ -138,7 +138,7 @@ func (c *TriggerSchema) Change() []Stringer {
 	}
 
 	// If we are comparing two different schemas against each other, we need to do some
-	// modification of the first trigger definition so we create it in the right dbSchema
+	// modification of the first trigger definition, so we create it in the right dbSchema
 	triggerDef := c.get("trigger_def")
 	schemaName := c.get("schema_name")
 	if c.dbSchema != c.other.dbSchema {
@@ -162,12 +162,20 @@ func (c *TriggerSchema) Change() []Stringer {
 
 // CompareTriggers outputs SQL to make the triggers match between DBs
 func CompareTriggers(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-
+	var errs []Stringer
 	buf1 := new(bytes.Buffer)
-	triggerSqlTemplate.Execute(buf1, dbInfo1)
-
+	err := triggerSqlTemplate.Execute(buf1, dbInfo1)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
 	buf2 := new(bytes.Buffer)
-	triggerSqlTemplate.Execute(buf2, dbInfo2)
+	err = triggerSqlTemplate.Execute(buf2, dbInfo2)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
 	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())

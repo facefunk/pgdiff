@@ -24,7 +24,7 @@ var (
 
 // Initializes the Sql template
 func initGrantRelationshipSqlTemplate() *template.Template {
-	sql := `
+	query := `
 SELECT n.nspname AS schema_name
   , {{ if eq $.DbSchema "*" }}n.nspname || '.' || {{ end }}c.relkind || '.' || c.relname AS compare_name
   , CASE c.relkind
@@ -48,7 +48,7 @@ AND n.nspname = '{{ $.DbSchema }}'
 `
 
 	t := template.New("GrantRelationshipSqlTmpl")
-	template.Must(t.Parse(sql))
+	template.Must(t.Parse(query))
 	return t
 }
 
@@ -210,12 +210,20 @@ func (c *GrantRelationshipSchema) Change() []Stringer {
 
 // CompareGrantRelationships outputs SQL to make the granted permissions match between DBs or schemas
 func CompareGrantRelationships(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-
+	var errs []Stringer
 	buf1 := new(bytes.Buffer)
-	grantRelationshipSqlTemplate.Execute(buf1, dbInfo1)
-
+	err := grantRelationshipSqlTemplate.Execute(buf1, dbInfo1)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
 	buf2 := new(bytes.Buffer)
-	grantRelationshipSqlTemplate.Execute(buf2, dbInfo2)
+	err = grantRelationshipSqlTemplate.Execute(buf2, dbInfo2)
+	if err != nil {
+		errs = append(errs, Error(err.Error()))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
 	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())
