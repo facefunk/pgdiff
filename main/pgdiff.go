@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -17,11 +18,40 @@ const (
 )
 
 var (
-	args       []string
-	dbInfo1    *pgutil.DbInfo
-	dbInfo2    *pgutil.DbInfo
-	schemaType string
+	args         []string
+	dbInfo1      *pgutil.DbInfo
+	dbInfo2      *pgutil.DbInfo
+	schemaType   string
+	allComps     []string
+	compareFuncs = make(map[string]compareFunc)
 )
+
+type compareFunc func(*sql.DB, *sql.DB, *pgutil.DbInfo, *pgutil.DbInfo) []pgdiff.Stringer
+
+func addCompareFunc(schemaType string, fun compareFunc, inAll bool) {
+	compareFuncs[schemaType] = fun
+	if inAll {
+		allComps = append(allComps, schemaType)
+	}
+}
+
+func init() {
+	addCompareFunc("SCHEMA", pgdiff.CompareSchematas, true)
+	addCompareFunc("ROLE", pgdiff.CompareRoles, true)
+	addCompareFunc("SEQUENCE", pgdiff.CompareSequences, true)
+	addCompareFunc("TABLE", pgdiff.CompareTables, true)
+	addCompareFunc("COLUMN", pgdiff.CompareColumns, true)
+	addCompareFunc("TABLE_COLUMN", pgdiff.CompareTableColumns, false)
+	addCompareFunc("INDEX", pgdiff.CompareIndexes, true)
+	addCompareFunc("VIEW", pgdiff.CompareViews, true)
+	addCompareFunc("MATVIEW", pgdiff.CompareMatViews, true)
+	addCompareFunc("FOREIGN_KEY", pgdiff.CompareForeignKeys, true)
+	addCompareFunc("FUNCTION", pgdiff.CompareFunctions, true)
+	addCompareFunc("TRIGGER", pgdiff.CompareTriggers, true)
+	addCompareFunc("OWNER", pgdiff.CompareOwners, true)
+	addCompareFunc("GRANT_RELATIONSHIP", pgdiff.CompareGrantRelationships, true)
+	addCompareFunc("GRANT_ATTRIBUTE", pgdiff.CompareGrantAttributes, true)
+}
 
 /*
  * Do the main logic
@@ -60,12 +90,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	schemaType = strings.ToUpper(args[0])
+	schemaType = strings.ToUpper(strings.Join(args, " "))
 	fmt.Println("-- schemaType:", schemaType)
 
 	fmt.Println("-- db1:", *dbInfo1)
 	fmt.Println("-- db2:", *dbInfo2)
-	fmt.Println("-- Run the following SQL against db2:")
 
 	conn1, err := dbInfo1.Open()
 	check("opening database 1", err)
@@ -74,62 +103,23 @@ func main() {
 	check("opening database 2", err)
 
 	var strs []pgdiff.Stringer
-	// This section needs to be improved so that you do not need to choose the type
-	// of alter statements to generate.  Rather, all should be generated in the
-	// proper order.
-	switch schemaType {
-	case "ALL":
-		if dbInfo1.DbSchema == "*" {
-			strs = append(strs, pgdiff.CompareSchematas(conn1, conn2, dbInfo1, dbInfo2)...)
+
+	for a, arg := range args {
+		if arg == "ALL" {
+			for _, st := range allComps {
+				strs = append(strs, compareFuncs[st](conn1, conn2, dbInfo1, dbInfo2)...)
+			}
+			continue
 		}
-		strs = append(strs, pgdiff.CompareSchematas(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareRoles(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareSequences(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareTables(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareColumns(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareIndexes(conn1, conn2, dbInfo1, dbInfo2)...) // includes PK and Unique constraints
-		strs = append(strs, pgdiff.CompareViews(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareMatViews(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareForeignKeys(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareFunctions(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareTriggers(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareOwners(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareGrantRelationships(conn1, conn2, dbInfo1, dbInfo2)...)
-		strs = append(strs, pgdiff.CompareGrantAttributes(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "SCHEMA":
-		strs = append(strs, pgdiff.CompareSchematas(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "ROLE":
-		strs = append(strs, pgdiff.CompareRoles(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "SEQUENCE":
-		strs = append(strs, pgdiff.CompareSequences(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "TABLE":
-		strs = append(strs, pgdiff.CompareTables(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "COLUMN":
-		strs = append(strs, pgdiff.CompareColumns(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "TABLE_COLUMN":
-		strs = append(strs, pgdiff.CompareTableColumns(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "INDEX":
-		strs = append(strs, pgdiff.CompareIndexes(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "VIEW":
-		strs = append(strs, pgdiff.CompareViews(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "MATVIEW":
-		strs = append(strs, pgdiff.CompareMatViews(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "FOREIGN_KEY":
-		strs = append(strs, pgdiff.CompareForeignKeys(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "FUNCTION":
-		strs = append(strs, pgdiff.CompareFunctions(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "TRIGGER":
-		strs = append(strs, pgdiff.CompareTriggers(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "OWNER":
-		strs = append(strs, pgdiff.CompareOwners(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "GRANT_RELATIONSHIP":
-		strs = append(strs, pgdiff.CompareGrantRelationships(conn1, conn2, dbInfo1, dbInfo2)...)
-	case "GRANT_ATTRIBUTE":
-		strs = append(strs, pgdiff.CompareGrantAttributes(conn1, conn2, dbInfo1, dbInfo2)...)
-	default:
-		fmt.Println("Not yet handled:", schemaType)
+		fun, ok := compareFuncs[arg]
+		if !ok {
+			fmt.Printf("-- ERROR: argument %d not yet handled: %s\n", a, arg)
+			continue
+		}
+		strs = append(strs, fun(conn1, conn2, dbInfo1, dbInfo2)...)
 	}
 
+	fmt.Println("-- Run the following SQL against db2:")
 	for _, s := range strs {
 		fmt.Println(s.String())
 	}
