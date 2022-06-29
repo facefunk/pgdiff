@@ -216,47 +216,22 @@ func (c *GrantAttributeSchema) Change() []Stringer {
 // Functions
 // ==================================
 
-// CompareGrantAttributes outputs SQL to make the granted permissions match between DBs or schemas
-func CompareGrantAttributes(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-	var errs []Stringer
+// dBSourceGrantAttributeSchema returns a GrantAttributeSchema that outputs SQL to make the granted permissions match
+// between DBs or schemas
+func dBSourceGrantAttributeSchema(conn1 *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
 	buf1 := new(bytes.Buffer)
-	err := grantAttributeSqlTemplate.Execute(buf1, dbInfo1)
+	err := grantAttributeSqlTemplate.Execute(buf1, dbInfo)
 	if err != nil {
-		errs = append(errs, Error(err.Error()))
-	}
-	buf2 := new(bytes.Buffer)
-	err = grantAttributeSqlTemplate.Execute(buf2, dbInfo2)
-	if err != nil {
-		errs = append(errs, Error(err.Error()))
-	}
-	if len(errs) > 0 {
-		return errs
+		return nil, err
 	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())
 
 	rows1 := make(GrantAttributeRows, 0)
 	for row := range rowChan1 {
 		rows1 = append(rows1, row)
 	}
 	sort.Sort(rows1)
-	//for _, row := range rows1 {
-	//strs = append(strs, Line(fmt.Sprintf("--1b compare:%s, col:%s, colAcl:%s\n", row["compare_name"], row["attribute_name"], row["attribute_acl"])))
-	//}
 
-	rows2 := make(GrantAttributeRows, 0)
-	for row := range rowChan2 {
-		rows2 = append(rows2, row)
-	}
-	sort.Sort(rows2)
-	//for _, row := range rows2 {
-	//strs = append(strs, Line(fmt.Sprintf("--2b compare:%s, col:%s, colAcl:%s\n", row["compare_name"], row["attribute_name"], row["attribute_acl"])))
-	//}
-
-	// We have to explicitly type this as Schema here for some unknown reason
-	var schema1 Schema = &GrantAttributeSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo1.DbSchema}
-	var schema2 Schema = &GrantAttributeSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
-
-	return doDiff(schema1, schema2)
+	return &GrantAttributeSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
 }

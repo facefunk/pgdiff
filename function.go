@@ -72,11 +72,11 @@ func (slice FunctionRows) Swap(i, j int) {
 //
 // FunctionSchema implements the Schema interface defined in pgdiff.go
 type FunctionSchema struct {
-	rows   FunctionRows
-	rowNum int
-	done   bool
-	schema string
-	other  *FunctionSchema
+	rows     FunctionRows
+	rowNum   int
+	done     bool
+	dbSchema string
+	other    *FunctionSchema
 }
 
 // get returns the value from the current row for the given key
@@ -115,11 +115,11 @@ func (c *FunctionSchema) Add() []Stringer {
 	// If we are comparing two different schemas against each other, we need to do some
 	// modification of the first function definition, so we create it in the right dbSchema
 	functionDef := c.get("definition")
-	if c.schema != c.other.schema {
+	if c.dbSchema != c.other.dbSchema {
 		functionDef = strings.Replace(
 			functionDef,
 			fmt.Sprintf("FUNCTION %s.%s(", c.get("schema_name"), c.get("function_name")),
-			fmt.Sprintf("FUNCTION %s.%s(", c.other.schema, c.get("function_name")),
+			fmt.Sprintf("FUNCTION %s.%s(", c.other.dbSchema, c.get("function_name")),
 			-1)
 	}
 
@@ -149,11 +149,11 @@ func (c FunctionSchema) Change() []Stringer {
 	// If we are comparing two different schemas against each other, we need to do some
 	// modification of the first function definition, so we create it in the right dbSchema
 	functionDef := c.get("definition")
-	if c.schema != c.other.schema {
+	if c.dbSchema != c.other.dbSchema {
 		functionDef = strings.Replace(
 			functionDef,
 			fmt.Sprintf("FUNCTION %s.%s(", c.get("schema_name"), c.get("function_name")),
-			fmt.Sprintf("FUNCTION %s.%s(", c.other.schema, c.get("function_name")),
+			fmt.Sprintf("FUNCTION %s.%s(", c.other.dbSchema, c.get("function_name")),
 			-1)
 	}
 
@@ -170,25 +170,15 @@ func (c FunctionSchema) Change() []Stringer {
 // Functions
 // ==================================
 
-// CompareFunctions outputs SQL to make the functions match between DBs
-func CompareFunctions(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-	var errs []Stringer
+// dBSourceFunctionSchema returns a FunctionSchema that outputs SQL to make the functions match between DBs
+func dBSourceFunctionSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
 	buf1 := new(bytes.Buffer)
-	err := functionSqlTemplate.Execute(buf1, dbInfo1)
+	err := functionSqlTemplate.Execute(buf1, dbInfo)
 	if err != nil {
-		errs = append(errs, Error(err.Error()))
-	}
-	buf2 := new(bytes.Buffer)
-	err = functionSqlTemplate.Execute(buf2, dbInfo2)
-	if err != nil {
-		errs = append(errs, Error(err.Error()))
-	}
-	if len(errs) > 0 {
-		return errs
+		return nil, err
 	}
 
-	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())
+	rowChan1, _ := pgutil.QueryStrings(conn, buf1.String())
 
 	rows1 := make(FunctionRows, 0)
 	for row := range rowChan1 {
@@ -196,16 +186,5 @@ func CompareFunctions(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbIn
 	}
 	sort.Sort(rows1)
 
-	rows2 := make(FunctionRows, 0)
-	for row := range rowChan2 {
-		rows2 = append(rows2, row)
-	}
-	sort.Sort(rows2)
-
-	// We must explicitly type this as Schema here
-	var schema1 Schema = &FunctionSchema{rows: rows1, rowNum: -1, schema: dbInfo1.DbSchema}
-	var schema2 Schema = &FunctionSchema{rows: rows2, rowNum: -1, schema: dbInfo2.DbSchema}
-
-	// Compare the functions
-	return doDiff(schema1, schema2)
+	return &FunctionSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
 }

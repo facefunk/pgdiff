@@ -7,9 +7,29 @@
 package pgdiff
 
 import (
-	"log"
+	"database/sql"
+	"fmt"
 
+	"github.com/joncrlsn/pgutil"
 	_ "github.com/lib/pq"
+)
+
+const (
+	SchemaSchemaType            = "SCHEMA"
+	RoleSchemaType              = "ROLE"
+	SequenceSchemaType          = "SEQUENCE"
+	TableSchemaType             = "TABLE"
+	ColumnSchemaType            = "COLUMN"
+	TableColumnSchemaType       = "TABLE_COLUMN"
+	IndexSchemaType             = "INDEX"
+	ViewSchemaType              = "VIEW"
+	MatViewSchemaType           = "MATVIEW"
+	ForeignKeySchemaType        = "FOREIGN_KEY"
+	FunctionSchemaType          = "FUNCTION"
+	TriggerSchemaType           = "TRIGGER"
+	OwnerSchemaType             = "OWNER"
+	GrantRelationshipSchemaType = "GRANT_RELATIONSHIP"
+	GrantAttributeSchemaType    = "GRANT_ATTRIBUTE"
 )
 
 // Schema is a database definition (table, column, constraint, indes, role, etc) that can be
@@ -23,6 +43,10 @@ type (
 		NextRow() bool
 	}
 
+	SchemaFactory interface {
+		Schema() Schema
+	}
+
 	Stringer interface {
 		String() string
 	}
@@ -30,6 +54,44 @@ type (
 	Line   string
 	Notice string
 	Error  string
+
+	dBSourceSchemaFunc func(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error)
+)
+
+var (
+	dDSourceSchemaFuncs = map[string]dBSourceSchemaFunc{
+		SchemaSchemaType:            dBSourceSchemataSchema,
+		RoleSchemaType:              dBSourceRoleSchema,
+		SequenceSchemaType:          dBSourceSequenceSchema,
+		TableSchemaType:             dBSourceTableSchema,
+		ColumnSchemaType:            dBSourceColumnSchema,
+		TableColumnSchemaType:       dBSourceTableColumnSchema,
+		IndexSchemaType:             dBSourceIndexSchema,
+		ViewSchemaType:              dBSourceViewSchema,
+		MatViewSchemaType:           dBSourceMatViewSchema,
+		ForeignKeySchemaType:        dBSourceForeignKeySchema,
+		FunctionSchemaType:          dBSourceFunctionSchema,
+		TriggerSchemaType:           dBSourceTriggerSchema,
+		OwnerSchemaType:             dBSourceOwnerSchema,
+		GrantRelationshipSchemaType: dBSourceGrantRelationshipSchema,
+		GrantAttributeSchemaType:    dBSourceGrantAttributeSchema,
+	}
+	AllSchemaTypes = []string{
+		SchemaSchemaType,
+		RoleSchemaType,
+		SequenceSchemaType,
+		TableSchemaType,
+		ColumnSchemaType,
+		IndexSchemaType,
+		ViewSchemaType,
+		MatViewSchemaType,
+		ForeignKeySchemaType,
+		FunctionSchemaType,
+		TriggerSchemaType,
+		OwnerSchemaType,
+		GrantRelationshipSchemaType,
+		GrantAttributeSchemaType,
+	}
 )
 
 func (s Line) String() string {
@@ -48,11 +110,30 @@ func (s Error) Error() string {
 	return string(s)
 }
 
-/*
- * This is a generic diff function that compares tables, columns, indexes, roles, grants, etc.
- * Different behaviors are specified the Schema implementations
- */
-func doDiff(db1 Schema, db2 Schema) []Stringer {
+func DBSourceSchema(connection *sql.DB, dbInfo *pgutil.DbInfo, schemaType string) (Schema, error) {
+	fun, ok := dDSourceSchemaFuncs[schemaType]
+	if !ok {
+		e := Error(fmt.Sprintf("DB Source does not support schema type: %s", schemaType))
+		return nil, &e
+	}
+	return fun(connection, dbInfo)
+}
+
+func DBSourceCompare(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo, schemaType string) []Stringer {
+	schema1, err := DBSourceSchema(conn1, dbInfo1, schemaType)
+	if err != nil {
+		return []Stringer{Error(err.Error())}
+	}
+	schema2, err := DBSourceSchema(conn2, dbInfo2, schemaType)
+	if err != nil {
+		return []Stringer{Error(err.Error())}
+	}
+	return Diff(schema1, schema2)
+}
+
+// Diff is a generic diff function that compares tables, columns, indexes, roles, grants, etc.
+// Different behaviors are specified by the Schema implementations
+func Diff(db1 Schema, db2 Schema) []Stringer {
 	var strs []Stringer
 	var s []Stringer
 	more1 := db1.NextRow()
@@ -91,10 +172,4 @@ func doDiff(db1 Schema, db2 Schema) []Stringer {
 		strs = append(strs, s...)
 	}
 	return strs
-}
-
-func check(msg string, err error) {
-	if err != nil {
-		log.Fatal("Error "+msg, err)
-	}
 }

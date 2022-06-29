@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -18,40 +17,11 @@ const (
 )
 
 var (
-	args         []string
-	dbInfo1      *pgutil.DbInfo
-	dbInfo2      *pgutil.DbInfo
-	schemaType   string
-	allComps     []string
-	compareFuncs = make(map[string]compareFunc)
+	args       []string
+	dbInfo1    *pgutil.DbInfo
+	dbInfo2    *pgutil.DbInfo
+	schemaType string
 )
-
-type compareFunc func(*sql.DB, *sql.DB, *pgutil.DbInfo, *pgutil.DbInfo) []pgdiff.Stringer
-
-func addCompareFunc(schemaType string, fun compareFunc, inAll bool) {
-	compareFuncs[schemaType] = fun
-	if inAll {
-		allComps = append(allComps, schemaType)
-	}
-}
-
-func init() {
-	addCompareFunc("SCHEMA", pgdiff.CompareSchematas, true)
-	addCompareFunc("ROLE", pgdiff.CompareRoles, true)
-	addCompareFunc("SEQUENCE", pgdiff.CompareSequences, true)
-	addCompareFunc("TABLE", pgdiff.CompareTables, true)
-	addCompareFunc("COLUMN", pgdiff.CompareColumns, true)
-	addCompareFunc("TABLE_COLUMN", pgdiff.CompareTableColumns, false)
-	addCompareFunc("INDEX", pgdiff.CompareIndexes, true)
-	addCompareFunc("VIEW", pgdiff.CompareViews, true)
-	addCompareFunc("MATVIEW", pgdiff.CompareMatViews, true)
-	addCompareFunc("FOREIGN_KEY", pgdiff.CompareForeignKeys, true)
-	addCompareFunc("FUNCTION", pgdiff.CompareFunctions, true)
-	addCompareFunc("TRIGGER", pgdiff.CompareTriggers, true)
-	addCompareFunc("OWNER", pgdiff.CompareOwners, true)
-	addCompareFunc("GRANT_RELATIONSHIP", pgdiff.CompareGrantRelationships, true)
-	addCompareFunc("GRANT_ATTRIBUTE", pgdiff.CompareGrantAttributes, true)
-}
 
 /*
  * Do the main logic
@@ -104,19 +74,14 @@ func main() {
 
 	var strs []pgdiff.Stringer
 
-	for a, arg := range args {
+	for _, arg := range args {
 		if arg == "ALL" {
-			for _, st := range allComps {
-				strs = append(strs, compareFuncs[st](conn1, conn2, dbInfo1, dbInfo2)...)
+			for _, st := range pgdiff.AllSchemaTypes {
+				strs = append(strs, pgdiff.DBSourceCompare(conn1, conn2, dbInfo1, dbInfo2, st)...)
 			}
 			continue
 		}
-		fun, ok := compareFuncs[arg]
-		if !ok {
-			fmt.Printf("-- ERROR: argument %d not yet handled: %s\n", a, arg)
-			continue
-		}
-		strs = append(strs, fun(conn1, conn2, dbInfo1, dbInfo2)...)
+		strs = append(strs, pgdiff.DBSourceCompare(conn1, conn2, dbInfo1, dbInfo2, arg)...)
 	}
 
 	fmt.Println("-- Run the following SQL against db2:")

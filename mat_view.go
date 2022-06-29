@@ -105,8 +105,8 @@ func (c MatViewSchema) Change() []Stringer {
 	return strs
 }
 
-// CompareMatViews outputs SQL to make the matviews match between DBs
-func CompareMatViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
+// dBSourceMatViewSchema returns a MatViewSchema that outputs SQL to make the matviews match between DBs
+func dBSourceMatViewSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
 	query := `
 	WITH matviews as ( SELECT schemaname || '.' || matviewname AS matviewname,
 	definition
@@ -123,26 +123,13 @@ func CompareMatViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInf
 	ORDER BY
 	matviewname;
 	`
+	rowChan, _ := pgutil.QueryStrings(conn, query)
 
-	rowChan1, _ := pgutil.QueryStrings(conn1, query)
-	rowChan2, _ := pgutil.QueryStrings(conn2, query)
-
-	rows1 := make(MatViewRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
+	rows := make(MatViewRows, 0)
+	for row := range rowChan {
+		rows = append(rows, row)
 	}
-	sort.Sort(rows1)
+	sort.Sort(rows)
 
-	rows2 := make(MatViewRows, 0)
-	for row := range rowChan2 {
-		rows2 = append(rows2, row)
-	}
-	sort.Sort(rows2)
-
-	// We have to explicitly type this as Schema here
-	var schema1 Schema = &MatViewSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &MatViewSchema{rows: rows2, rowNum: -1}
-
-	// Compare the matviews
-	return doDiff(schema1, schema2)
+	return &MatViewSchema{rows: rows, rowNum: -1}, nil
 }

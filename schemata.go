@@ -94,15 +94,8 @@ func (c SchemataSchema) Change() []Stringer {
 	return nil
 }
 
-// CompareSchematas outputs SQL to make the dbSchema names match between DBs
-func CompareSchematas(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-
-	// if we are comparing two schemas against each other, then
-	// we won't compare to ensure they are created, although maybe we should.
-	if dbInfo1.DbSchema != dbInfo2.DbSchema {
-		return nil
-	}
-
+// dBSourceSchemataSchema returns a SchemataSchema that outputs SQL to make the dbSchema names match between DBs
+func dBSourceSchemataSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
 	query := `
 SELECT schema_name
     , schema_owner
@@ -112,25 +105,13 @@ WHERE schema_name NOT LIKE 'pg_%'
   AND schema_name <> 'information_schema' 
 ORDER BY schema_name;`
 
-	rowChan1, _ := pgutil.QueryStrings(conn1, query)
-	rowChan2, _ := pgutil.QueryStrings(conn2, query)
+	rowChan, _ := pgutil.QueryStrings(conn, query)
 
-	rows1 := make(SchemataRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
+	rows := make(SchemataRows, 0)
+	for row := range rowChan {
+		rows = append(rows, row)
 	}
-	sort.Sort(rows1)
+	sort.Sort(rows)
 
-	rows2 := make(SchemataRows, 0)
-	for row := range rowChan2 {
-		rows2 = append(rows2, row)
-	}
-	sort.Sort(rows2)
-
-	// We have to explicitly type this as Schema here
-	var schema1 Schema = &SchemataSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &SchemataSchema{rows: rows2, rowNum: -1}
-
-	// Compare the schematas
-	return doDiff(schema1, schema2)
+	return &SchemataSchema{rows: rows, rowNum: -1}, nil
 }

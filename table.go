@@ -129,25 +129,15 @@ func (c TableSchema) Change() []Stringer {
 	return nil
 }
 
-// CompareTables outputs SQL to make the table names match between DBs
-func CompareTables(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-	var errs []Stringer
+// dBSourceTableSchema returns a TableSchema that outputs SQL to make the table names match between DBs
+func dBSourceTableSchema(conn1 *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
 	buf1 := new(bytes.Buffer)
-	err := tableSqlTemplate.Execute(buf1, dbInfo1)
+	err := tableSqlTemplate.Execute(buf1, dbInfo)
 	if err != nil {
-		errs = append(errs, Error(err.Error()))
-	}
-	buf2 := new(bytes.Buffer)
-	err = tableSqlTemplate.Execute(buf2, dbInfo2)
-	if err != nil {
-		errs = append(errs, Error(err.Error()))
-	}
-	if len(errs) > 0 {
-		return errs
+		return nil, err
 	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())
 
 	rows1 := make(TableRows, 0)
 	for row := range rowChan1 {
@@ -155,16 +145,5 @@ func CompareTables(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2
 	}
 	sort.Sort(rows1)
 
-	rows2 := make(TableRows, 0)
-	for row := range rowChan2 {
-		rows2 = append(rows2, row)
-	}
-	sort.Sort(rows2)
-
-	// We have to explicitly type this as Schema here
-	var schema1 Schema = &TableSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo1.DbSchema}
-	var schema2 Schema = &TableSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
-
-	// Compare the tables
-	return doDiff(schema1, schema2)
+	return &TableSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
 }

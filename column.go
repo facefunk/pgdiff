@@ -230,10 +230,14 @@ func (c *ColumnSchema) Change() []Stringer {
 				//if !max1Valid {
 				//    strs = append(strs, Line(fmt.Sprintln("-- WARNING: varchar column has no maximum length.  Setting to 1024, which may result in data loss.")))
 				//}
-				max1Int, err1 := strconv.Atoi(max1)
-				check("converting string to int", err1)
-				max2Int, err2 := strconv.Atoi(max2)
-				check("converting string to int", err2)
+				max1Int, err := strconv.Atoi(max1)
+				if err != nil {
+					return []Stringer{Error("converting string to int"), Error(err.Error())}
+				}
+				max2Int, err := strconv.Atoi(max2)
+				if err != nil {
+					return []Stringer{Error("converting string to int"), Error(err.Error())}
+				}
 				if max1Int < max2Int {
 					strs = append(strs, Notice("-- WARNING: The next statement will shorten a character varying column, which may result in data loss."))
 				}
@@ -306,60 +310,36 @@ func (c *ColumnSchema) Change() []Stringer {
 // Standalone Functions
 // ==================================
 
-// compare outputs SQL to make the columns match between two databases or schemas
-func compare(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo, tpl *template.Template) []Stringer {
-	var errs []Stringer
-	buf1 := new(bytes.Buffer)
-	err := tpl.Execute(buf1, dbInfo1)
+// columnSchema returns a Schema that outputs SQL to make the columns match between two databases or schemas
+func columnSchema(conn *sql.DB, dbInfo *pgutil.DbInfo, tpl *template.Template) (Schema, error) {
+
+	buf := new(bytes.Buffer)
+	err := tpl.Execute(buf, dbInfo)
 	if err != nil {
-		errs = append(errs, Error(err.Error()))
-	}
-	buf2 := new(bytes.Buffer)
-	err = tpl.Execute(buf2, dbInfo2)
-	if err != nil {
-		errs = append(errs, Error(err.Error()))
-	}
-	if len(errs) > 0 {
-		return errs
+		return nil, err
 	}
 
-	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())
+	rowChan, _ := pgutil.QueryStrings(conn, buf.String())
 
-	//rows1 := make([]map[string]string, 500)
 	rows1 := make(ColumnRows, 0)
-	for row := range rowChan1 {
+	for row := range rowChan {
 		rows1 = append(rows1, row)
 	}
 	sort.Sort(rows1)
 
-	//rows2 := make([]map[string]string, 500)
-	rows2 := make(ColumnRows, 0)
-	for row := range rowChan2 {
-		rows2 = append(rows2, row)
-	}
-	sort.Sort(&rows2)
-
-	// We have to explicitly type this as Schema here for some unknown reason
-	var schema1 Schema = &ColumnSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo1.DbSchema}
-	var schema2 Schema = &ColumnSchema{rows: rows2, rowNum: -1, dbSchema: dbInfo2.DbSchema}
-
-	// Compare the columns
-	return doDiff(schema1, schema2)
+	return &ColumnSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
 }
 
-// CompareColumns outputs SQL to make the columns match between two databases or schemas
-func CompareColumns(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-
-	return compare(conn1, conn2, dbInfo1, dbInfo2, columnSqlTemplate)
-
+// dBSourceColumnSchema returns a ColumnSchema that outputs SQL to make the columns match between two databases or
+// schemas
+func dBSourceColumnSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
+	return columnSchema(conn, dbInfo, columnSqlTemplate)
 }
 
-// CompareTableColumns outputs SQL to make the tables columns (without views columns) match between two databases or schemas
-func CompareTableColumns(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-
-	return compare(conn1, conn2, dbInfo1, dbInfo2, tableColumnSqlTemplate)
-
+// dBSourceTableColumnSchema returns a ColumnSchema that outputs SQL to make the tables columns (without views columns)
+// match between two databases or schemas
+func dBSourceTableColumnSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
+	return columnSchema(conn, dbInfo, tableColumnSqlTemplate)
 }
 
 // getMaxLength returns the maximum length and whether or not it is valid

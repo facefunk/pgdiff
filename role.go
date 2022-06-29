@@ -268,8 +268,8 @@ func (c RoleSchema) Change() []Stringer {
 	return strs
 }
 
-// CompareRoles compares the roles between two databases or schemas.
-func CompareRoles(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
+// dBSourceRoleSchema returns a RoleSchema that compares the roles between two databases or schemas.
+func dBSourceRoleSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
 	query := `
 SELECT r.rolname
     , r.rolsuper
@@ -287,25 +287,14 @@ SELECT r.rolname
 FROM pg_catalog.pg_roles AS r
 ORDER BY r.rolname;
 `
-	rowChan1, _ := pgutil.QueryStrings(conn1, query)
-	rowChan2, _ := pgutil.QueryStrings(conn2, query)
 
-	rows1 := make(RoleRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
+	rowChan, _ := pgutil.QueryStrings(conn, query)
+
+	rows := make(RoleRows, 0)
+	for row := range rowChan {
+		rows = append(rows, row)
 	}
-	sort.Sort(rows1)
+	sort.Sort(rows)
 
-	rows2 := make(RoleRows, 0)
-	for row := range rowChan2 {
-		rows2 = append(rows2, row)
-	}
-	sort.Sort(rows2)
-
-	// We have to explicitly type this as Schema here for some unknown reason
-	var schema1 Schema = &RoleSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &RoleSchema{rows: rows2, rowNum: -1}
-
-	// Compare the roles
-	return doDiff(schema1, schema2)
+	return &RoleSchema{rows: rows, rowNum: -1}, nil
 }

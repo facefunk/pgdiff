@@ -137,25 +137,16 @@ func (c OwnerSchema) Change() []Stringer {
 	return nil
 }
 
-// CompareOwners compares the ownership of tables, sequences, and views between two databases or schemas
-func CompareOwners(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
-	var errs []Stringer
+// dBSourceOwnerSchema returns an OwnerSchema that compares the ownership of tables, sequences, and views between two
+// databases or schemas
+func dBSourceOwnerSchema(conn1 *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
 	buf1 := new(bytes.Buffer)
-	err := ownerSqlTemplate.Execute(buf1, dbInfo1)
+	err := ownerSqlTemplate.Execute(buf1, dbInfo)
 	if err != nil {
-		errs = append(errs, Error(err.Error()))
-	}
-	buf2 := new(bytes.Buffer)
-	err = ownerSqlTemplate.Execute(buf2, dbInfo2)
-	if err != nil {
-		errs = append(errs, Error(err.Error()))
-	}
-	if len(errs) > 0 {
-		return errs
+		return nil, err
 	}
 
 	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-	rowChan2, _ := pgutil.QueryStrings(conn2, buf2.String())
 
 	rows1 := make(OwnerRows, 0)
 	for row := range rowChan1 {
@@ -163,15 +154,5 @@ func CompareOwners(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2
 	}
 	sort.Sort(rows1)
 
-	rows2 := make(OwnerRows, 0)
-	for row := range rowChan2 {
-		rows2 = append(rows2, row)
-	}
-	sort.Sort(rows2)
-
-	// We have to explicitly type this as Schema here for some unknown reason
-	var schema1 Schema = &OwnerSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &OwnerSchema{rows: rows2, rowNum: -1}
-
-	return doDiff(schema1, schema2)
+	return &OwnerSchema{rows: rows1, rowNum: -1}, nil
 }

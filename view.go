@@ -98,8 +98,8 @@ func (c ViewSchema) Change() []Stringer {
 	}
 }
 
-// CompareViews outputs SQL to make the views match between DBs
-func CompareViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo) []Stringer {
+// dBSourceViewSchema returns a ViewSchema that outputs SQL to make the views match between DBs
+func dBSourceViewSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
 	query := `
 	SELECT schemaname || '.' || viewname AS viewname
 		, definition 
@@ -108,25 +108,13 @@ func CompareViews(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 
 	ORDER BY viewname;
 	`
 
-	rowChan1, _ := pgutil.QueryStrings(conn1, query)
-	rowChan2, _ := pgutil.QueryStrings(conn2, query)
+	rowChan, _ := pgutil.QueryStrings(conn, query)
 
-	rows1 := make(ViewRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
+	rows := make(ViewRows, 0)
+	for row := range rowChan {
+		rows = append(rows, row)
 	}
-	sort.Sort(rows1)
+	sort.Sort(rows)
 
-	rows2 := make(ViewRows, 0)
-	for row := range rowChan2 {
-		rows2 = append(rows2, row)
-	}
-	sort.Sort(rows2)
-
-	// We have to explicitly type this as Schema here
-	var schema1 Schema = &ViewSchema{rows: rows1, rowNum: -1}
-	var schema2 Schema = &ViewSchema{rows: rows2, rowNum: -1}
-
-	// Compare the views
-	return doDiff(schema1, schema2)
+	return &ViewSchema{rows: rows, rowNum: -1}, nil
 }
