@@ -7,14 +7,11 @@
 package pgdiff
 
 import (
-	"database/sql"
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
 
 var curlyBracketRegex = regexp.MustCompile("[{}]")
@@ -46,6 +43,10 @@ type RoleSchema struct {
 	rowNum int
 	done   bool
 	other  *RoleSchema
+}
+
+func NewRoleSchema(rows RoleRows) *RoleSchema {
+	return &RoleSchema{rows: rows, rowNum: -1}
 }
 
 // get returns the value from the current row for the given key
@@ -266,35 +267,4 @@ func (c RoleSchema) Change() []Stringer {
 
 	}
 	return strs
-}
-
-// dBSourceRoleSchema returns a RoleSchema that compares the roles between two databases or schemas.
-func dBSourceRoleSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	query := `
-SELECT r.rolname
-    , r.rolsuper
-    , r.rolinherit
-    , r.rolcreaterole
-    , r.rolcreatedb
-    , r.rolcanlogin
-    , r.rolconnlimit
-    , r.rolvaliduntil
-    , r.rolreplication
-	, ARRAY(SELECT b.rolname 
-	        FROM pg_catalog.pg_auth_members m  
-			JOIN pg_catalog.pg_roles b ON (m.roleid = b.oid)  
-	        WHERE m.member = r.oid) as memberof
-FROM pg_catalog.pg_roles AS r
-ORDER BY r.rolname;
-`
-
-	rowChan, _ := pgutil.QueryStrings(conn, query)
-
-	rows := make(RoleRows, 0)
-	for row := range rowChan {
-		rows = append(rows, row)
-	}
-	sort.Sort(rows)
-
-	return &RoleSchema{rows: rows, rowNum: -1}, nil
 }

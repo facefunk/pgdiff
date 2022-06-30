@@ -7,46 +7,10 @@
 package pgdiff
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
-	"sort"
-	"text/template"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
-
-var (
-	sequenceSqlTemplate = initSequenceSqlTemplate()
-)
-
-// Initializes the Sql template
-func initSequenceSqlTemplate() *template.Template {
-	query := `
-SELECT sequence_schema AS schema_name
-    , {{if eq $.DbSchema "*" }}sequence_schema || '.' || {{end}}sequence_name AS compare_name
-    , sequence_name 
-	, data_type
-	, start_value
-	, minimum_value
-	, maximum_value
-	, increment
-	, cycle_option 
-FROM information_schema.sequences
-WHERE true
-{{if eq $.DbSchema "*" }}
-AND sequence_schema NOT LIKE 'pg_%' 
-AND sequence_schema <> 'information_schema' 
-{{else}}
-AND sequence_schema = '{{$.DbSchema}}'
-{{end}}
-`
-
-	t := template.New("SequenceSqlTmpl")
-	template.Must(t.Parse(query))
-	return t
-}
 
 // ==================================
 // SequenceRows definition
@@ -77,6 +41,10 @@ type SequenceSchema struct {
 	done     bool
 	dbSchema string
 	other    *SequenceSchema
+}
+
+func NewSequenceSchema(rows SequenceRows, dbSchema string) *SequenceSchema {
+	return &SequenceSchema{rows: rows, rowNum: -1, dbSchema: dbSchema}
 }
 
 // get returns the value from the current row for the given key
@@ -127,23 +95,4 @@ func (c SequenceSchema) Drop() []Stringer {
 func (c SequenceSchema) Change() []Stringer {
 	// Don't know of anything helpful we should do here
 	return nil
-}
-
-// dBSourceSequenceSchema returns a SequenceSchema that outputs SQL to make the sequences match between DBs or schemas
-func dBSourceSequenceSchema(conn1 *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	buf1 := new(bytes.Buffer)
-	err := sequenceSqlTemplate.Execute(buf1, dbInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-
-	rows1 := make(SequenceRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
-	}
-	sort.Sort(rows1)
-
-	return &SequenceSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
 }

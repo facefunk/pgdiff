@@ -7,45 +7,11 @@
 package pgdiff
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
-	"sort"
 	"strings"
-	"text/template"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
-
-var (
-	triggerSqlTemplate = initTriggerSqlTemplate()
-)
-
-// Initializes the Sql template
-func initTriggerSqlTemplate() *template.Template {
-	query := `
-    SELECT n.nspname AS schema_name
-       , {{if eq $.DbSchema "*" }}n.nspname || '.' || {{end}}c.relname || '.' || t.tgname AS compare_name
-       , c.relname AS table_name
-       , t.tgname AS trigger_name
-       , pg_catalog.pg_get_triggerdef(t.oid, true) AS trigger_def
-       , t.tgenabled AS enabled
-    FROM pg_catalog.pg_trigger t
-    INNER JOIN pg_catalog.pg_class c ON (c.oid = t.tgrelid)
-    INNER JOIN pg_catalog.pg_namespace n ON (n.oid = c.relnamespace)
-	WHERE not t.tgisinternal
-    {{if eq $.DbSchema "*" }}
-    AND n.nspname NOT LIKE 'pg_%' 
-    AND n.nspname <> 'information_schema' 
-    {{else}}
-    AND n.nspname = '{{$.DbSchema}}'
-    {{end}}
-	`
-	t := template.New("TriggerSqlTmpl")
-	template.Must(t.Parse(query))
-	return t
-}
 
 // ==================================
 // TriggerRows definition
@@ -76,6 +42,10 @@ type TriggerSchema struct {
 	done     bool
 	dbSchema string
 	other    *TriggerSchema
+}
+
+func NewTriggerSchema(rows TriggerRows, dbSchema string) *TriggerSchema {
+	return &TriggerSchema{rows: rows, rowNum: -1, dbSchema: dbSchema}
 }
 
 // get returns the value from the current row for the given key
@@ -158,23 +128,4 @@ func (c *TriggerSchema) Change() []Stringer {
 		Line(fmt.Sprintf("%s;", triggerDef)),
 		Notice("-- STATEMENT-END"),
 	}
-}
-
-// dBSourceTriggerSchema returns a TriggerSchema that outputs SQL to make the triggers match between DBs
-func dBSourceTriggerSchema(conn1 *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	buf1 := new(bytes.Buffer)
-	err := triggerSqlTemplate.Execute(buf1, dbInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-
-	rows1 := make(TriggerRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
-	}
-	sort.Sort(rows1)
-
-	return &TriggerSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
 }

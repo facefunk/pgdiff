@@ -7,47 +7,10 @@
 package pgdiff
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
-	"sort"
-	"text/template"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
-
-var (
-	ownerSqlTemplate = initOwnerSqlTemplate()
-)
-
-// Initializes the Sql template
-func initOwnerSqlTemplate() *template.Template {
-	query := `
-SELECT n.nspname AS schema_name
-    , {{if eq $.DbSchema "*" }}n.nspname || '.' || {{end}}c.relname || '.' || c.relname AS compare_name
-    , c.relname AS relationship_name
-    , a.rolname AS owner
-    , CASE WHEN c.relkind = 'r' THEN 'TABLE' 
-        WHEN c.relkind = 'S' THEN 'SEQUENCE' 
-        WHEN c.relkind = 'v' THEN 'VIEW' 
-        ELSE c.relkind::varchar END AS type
-FROM pg_class AS c
-INNER JOIN pg_roles AS a ON (a.oid = c.relowner)
-INNER JOIN pg_namespace AS n ON (n.oid = c.relnamespace)
-WHERE c.relkind IN ('r', 'S', 'v')
-{{if eq $.DbSchema "*" }}
-AND n.nspname NOT LIKE 'pg_%' 
-AND n.nspname <> 'information_schema'
-{{else}}
-AND n.nspname = '{{$.DbSchema}}'
-{{end}}
-;`
-
-	t := template.New("OwnerSqlTmpl")
-	template.Must(t.Parse(query))
-	return t
-}
 
 // ==================================
 // OwnerRows definition
@@ -80,6 +43,10 @@ type OwnerSchema struct {
 	rowNum int
 	done   bool
 	other  *OwnerSchema
+}
+
+func NewOwnerSchema(rows OwnerRows) *OwnerSchema {
+	return &OwnerSchema{rows: rows, rowNum: -1}
 }
 
 // get returns the value from the current row for the given key
@@ -135,24 +102,4 @@ func (c OwnerSchema) Change() []Stringer {
 		return []Stringer{Line(fmt.Sprintf("ALTER %s %s.%s OWNER TO %s;", c.get("type"), c.other.get("schema_name"), c.get("relationship_name"), c.get("owner")))}
 	}
 	return nil
-}
-
-// dBSourceOwnerSchema returns an OwnerSchema that compares the ownership of tables, sequences, and views between two
-// databases or schemas
-func dBSourceOwnerSchema(conn1 *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	buf1 := new(bytes.Buffer)
-	err := ownerSqlTemplate.Execute(buf1, dbInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-
-	rows1 := make(OwnerRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
-	}
-	sort.Sort(rows1)
-
-	return &OwnerSchema{rows: rows1, rowNum: -1}, nil
 }

@@ -7,46 +7,11 @@
 package pgdiff
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
-	"sort"
 	"strings"
-	"text/template"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
-
-var (
-	functionSqlTemplate = initFunctionSqlTemplate()
-)
-
-// Initializes the Sql template
-func initFunctionSqlTemplate() *template.Template {
-	query := `
-    SELECT n.nspname                 AS schema_name
-        , {{if eq $.DbSchema "*" }}n.nspname || '.' || {{end}}p.proname AS compare_name
-        , p.proname                  AS function_name
-        , p.oid::regprocedure        AS fancy
-        , t.typname                  AS return_type
-        , pg_get_functiondef(p.oid)  AS definition
-    FROM pg_proc AS p
-    JOIN pg_type t ON (p.prorettype = t.oid)
-    JOIN pg_namespace n ON (n.oid = p.pronamespace)
-    JOIN pg_language l ON (p.prolang = l.oid AND l.lanname IN ('c','plpgsql', 'sql'))
-    WHERE true
-	{{if eq $.DbSchema "*" }}
-    AND n.nspname NOT LIKE 'pg_%' 
-    AND n.nspname <> 'information_schema' 
-    {{else}}
-    AND n.nspname = '{{$.DbSchema}}'
-    {{end}};
-	`
-	t := template.New("FunctionSqlTmpl")
-	template.Must(t.Parse(query))
-	return t
-}
 
 // ==================================
 // FunctionRows definition
@@ -77,6 +42,10 @@ type FunctionSchema struct {
 	done     bool
 	dbSchema string
 	other    *FunctionSchema
+}
+
+func NewFunctionSchema(rows FunctionRows, dbSchema string) *FunctionSchema {
+	return &FunctionSchema{rows: rows, rowNum: -1, dbSchema: dbSchema}
 }
 
 // get returns the value from the current row for the given key
@@ -164,27 +133,4 @@ func (c FunctionSchema) Change() []Stringer {
 		Line(fmt.Sprintf("%s;", functionDef)),
 		Notice("-- STATEMENT-END"),
 	}
-}
-
-// ==================================
-// Functions
-// ==================================
-
-// dBSourceFunctionSchema returns a FunctionSchema that outputs SQL to make the functions match between DBs
-func dBSourceFunctionSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	buf1 := new(bytes.Buffer)
-	err := functionSqlTemplate.Execute(buf1, dbInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	rowChan1, _ := pgutil.QueryStrings(conn, buf1.String())
-
-	rows1 := make(FunctionRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
-	}
-	sort.Sort(rows1)
-
-	return &FunctionSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
 }

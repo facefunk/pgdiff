@@ -6,16 +6,11 @@
 
 package pgdiff
 
-import (
-	"database/sql"
-	"fmt"
-
-	"github.com/joncrlsn/pgutil"
-	_ "github.com/lib/pq"
-)
+import "fmt"
 
 const (
-	SchemaSchemaType            = "SCHEMA"
+	AllSchemaType               = "ALL"
+	SchemataSchemaType          = "SCHEMA"
 	RoleSchemaType              = "ROLE"
 	SequenceSchemaType          = "SEQUENCE"
 	TableSchemaType             = "TABLE"
@@ -32,9 +27,28 @@ const (
 	GrantAttributeSchemaType    = "GRANT_ATTRIBUTE"
 )
 
-// Schema is a database definition (table, column, constraint, indes, role, etc) that can be
-// added, dropped, or changed to match another database.
+// AllSchemaTypes is all the schema types necessary to generate full output. This is actually all the schema types minus
+// TableColumnSchemaType which is a more restrictive output of ColumnSchemaType.
+var AllSchemaTypes = []string{
+	SchemataSchemaType,
+	RoleSchemaType,
+	SequenceSchemaType,
+	TableSchemaType,
+	ColumnSchemaType,
+	IndexSchemaType,
+	ViewSchemaType,
+	MatViewSchemaType,
+	ForeignKeySchemaType,
+	FunctionSchemaType,
+	TriggerSchemaType,
+	OwnerSchemaType,
+	GrantRelationshipSchemaType,
+	GrantAttributeSchemaType,
+}
+
 type (
+	// Schema is a database definition (table, column, constraint, index, role, etc) that can be added, dropped, or
+	// changed to match another database.
 	Schema interface {
 		Compare(otherSchema Schema) (int, *Error)
 		Add() []Stringer
@@ -43,10 +57,27 @@ type (
 		NextRow() bool
 	}
 
+	// SchemaFactory instantiates each type of Schema based on a data source.
 	SchemaFactory interface {
-		Schema() Schema
+		Schemata() (*SchemataSchema, error)
+		Role() (*RoleSchema, error)
+		Sequence() (*SequenceSchema, error)
+		Table() (*TableSchema, error)
+		Column() (*ColumnSchema, error)
+		TableColumn() (*ColumnSchema, error)
+		Index() (*IndexSchema, error)
+		View() (*ViewSchema, error)
+		MatView() (*MatViewSchema, error)
+		ForeignKey() (*ForeignKeySchema, error)
+		Function() (*FunctionSchema, error)
+		Trigger() (*TriggerSchema, error)
+		Owner() (*OwnerSchema, error)
+		GrantRelationship() (*GrantRelationshipSchema, error)
+		GrantAttribute() (*GrantAttributeSchema, error)
 	}
 
+	// Stringer simply returns a string. Allows a slice of Stringer to be returned from a function, which can then be
+	// type-switched to filter the output.
 	Stringer interface {
 		String() string
 	}
@@ -54,44 +85,6 @@ type (
 	Line   string
 	Notice string
 	Error  string
-
-	dBSourceSchemaFunc func(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error)
-)
-
-var (
-	dDSourceSchemaFuncs = map[string]dBSourceSchemaFunc{
-		SchemaSchemaType:            dBSourceSchemataSchema,
-		RoleSchemaType:              dBSourceRoleSchema,
-		SequenceSchemaType:          dBSourceSequenceSchema,
-		TableSchemaType:             dBSourceTableSchema,
-		ColumnSchemaType:            dBSourceColumnSchema,
-		TableColumnSchemaType:       dBSourceTableColumnSchema,
-		IndexSchemaType:             dBSourceIndexSchema,
-		ViewSchemaType:              dBSourceViewSchema,
-		MatViewSchemaType:           dBSourceMatViewSchema,
-		ForeignKeySchemaType:        dBSourceForeignKeySchema,
-		FunctionSchemaType:          dBSourceFunctionSchema,
-		TriggerSchemaType:           dBSourceTriggerSchema,
-		OwnerSchemaType:             dBSourceOwnerSchema,
-		GrantRelationshipSchemaType: dBSourceGrantRelationshipSchema,
-		GrantAttributeSchemaType:    dBSourceGrantAttributeSchema,
-	}
-	AllSchemaTypes = []string{
-		SchemaSchemaType,
-		RoleSchemaType,
-		SequenceSchemaType,
-		TableSchemaType,
-		ColumnSchemaType,
-		IndexSchemaType,
-		ViewSchemaType,
-		MatViewSchemaType,
-		ForeignKeySchemaType,
-		FunctionSchemaType,
-		TriggerSchemaType,
-		OwnerSchemaType,
-		GrantRelationshipSchemaType,
-		GrantAttributeSchemaType,
-	}
 )
 
 func (s Line) String() string {
@@ -110,29 +103,78 @@ func (s Error) Error() string {
 	return string(s)
 }
 
-func DBSourceSchema(connection *sql.DB, dbInfo *pgutil.DbInfo, schemaType string) (Schema, error) {
-	fun, ok := dDSourceSchemaFuncs[schemaType]
-	if !ok {
-		e := Error(fmt.Sprintf("DB Source does not support schema type: %s", schemaType))
-		return nil, &e
+// SchemaByType returns a Schema from factory by schemaType.
+func SchemaByType(factory SchemaFactory, schemaType string) (Schema, error) {
+	switch schemaType {
+	case SchemataSchemaType:
+		return factory.Schemata()
+	case RoleSchemaType:
+		return factory.Role()
+	case SequenceSchemaType:
+		return factory.Sequence()
+	case TableSchemaType:
+		return factory.Table()
+	case ColumnSchemaType:
+		return factory.Column()
+	case TableColumnSchemaType:
+		return factory.TableColumn()
+	case IndexSchemaType:
+		return factory.Index()
+	case ViewSchemaType:
+		return factory.View()
+	case MatViewSchemaType:
+		return factory.MatView()
+	case ForeignKeySchemaType:
+		return factory.ForeignKey()
+	case FunctionSchemaType:
+		return factory.Function()
+	case TriggerSchemaType:
+		return factory.Trigger()
+	case OwnerSchemaType:
+		return factory.Owner()
+	case GrantRelationshipSchemaType:
+		return factory.GrantRelationship()
+	case GrantAttributeSchemaType:
+		return factory.GrantAttribute()
 	}
-	return fun(connection, dbInfo)
+	err := Error(fmt.Sprintf("unsupported schema type: %s", schemaType))
+	return nil, &err
 }
 
-func DBSourceCompare(conn1 *sql.DB, conn2 *sql.DB, dbInfo1 *pgutil.DbInfo, dbInfo2 *pgutil.DbInfo, schemaType string) []Stringer {
-	schema1, err := DBSourceSchema(conn1, dbInfo1, schemaType)
+// CompareByFactories runs a single comparison of schemaType between sources represented by fac1 and fac2.
+func CompareByFactories(fac1 SchemaFactory, fac2 SchemaFactory, schemaType string) []Stringer {
+	var strs []Stringer
+	schema1, err := SchemaByType(fac1, schemaType)
 	if err != nil {
-		return []Stringer{Error(err.Error())}
+		strs = append(strs, Error(err.Error()))
 	}
-	schema2, err := DBSourceSchema(conn2, dbInfo2, schemaType)
+	schema2, err := SchemaByType(fac2, schemaType)
 	if err != nil {
-		return []Stringer{Error(err.Error())}
+		strs = append(strs, Error(err.Error()))
 	}
-	return Diff(schema1, schema2)
+	diff := Diff(schema1, schema2)
+	strs = append(strs, diff...)
+	return strs
+}
+
+// CompareByFactoriesAndArgs is the main command-line compare function. It runs one comparison between sources
+// represented by fac1 and fac2 for each schema type listed in args.
+func CompareByFactoriesAndArgs(fac1 SchemaFactory, fac2 SchemaFactory, args []string) []Stringer {
+	var strs []Stringer
+	for _, arg := range args {
+		if arg == AllSchemaType {
+			for _, st := range AllSchemaTypes {
+				strs = append(strs, CompareByFactories(fac1, fac2, st)...)
+			}
+			continue
+		}
+		strs = append(strs, CompareByFactories(fac1, fac2, arg)...)
+	}
+	return strs
 }
 
 // Diff is a generic diff function that compares tables, columns, indexes, roles, grants, etc.
-// Different behaviors are specified by the Schema implementations
+// Different behaviors are specified by Schema implementations.
 func Diff(db1 Schema, db2 Schema) []Stringer {
 	var strs []Stringer
 	var s []Stringer

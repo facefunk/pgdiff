@@ -7,84 +7,12 @@
 package pgdiff
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
-
-var (
-	columnSqlTemplate = initColumnSqlTemplate()
-)
-
-// Initializes the Sql template
-func initColumnSqlTemplate() *template.Template {
-	query := `
-SELECT table_schema
-    ,  {{if eq $.DbSchema "*" }}table_schema || '.' || {{end}}table_name || '.' ||lpad(cast (ordinal_position as varchar), 5, '0')|| column_name AS compare_name
-	, table_name
-    , column_name
-    , data_type
-    , is_nullable
-    , column_default
-    , character_maximum_length
-    , is_identity
-    , identity_generation
-    , substring(udt_name from 2) AS array_type
-FROM information_schema.columns
-WHERE is_updatable = 'YES'
-{{if eq $.DbSchema "*" }}
-AND table_schema NOT LIKE 'pg_%' 
-AND table_schema <> 'information_schema' 
-{{else}}
-AND table_schema = '{{$.DbSchema}}'
-{{end}}
-ORDER BY compare_name ASC;
-`
-	t := template.New("ColumnSqlTmpl")
-	template.Must(t.Parse(query))
-	return t
-}
-
-var (
-	tableColumnSqlTemplate = initTableColumnSqlTemplate()
-)
-
-// Initializes the Sql template
-func initTableColumnSqlTemplate() *template.Template {
-	query := `
-SELECT a.table_schema
-    , {{if eq $.DbSchema "*" }}a.table_schema || '.' || {{end}}a.table_name || '.' || column_name  AS compare_name
-	, a.table_name
-    , column_name
-    , data_type
-    , is_nullable
-    , column_default
-    , character_maximum_length
-FROM information_schema.columns a
-INNER JOIN information_schema.tables b
-    ON a.table_schema = b.table_schema AND
-       a.table_name = b.table_name AND
-       b.table_type = 'BASE TABLE'
-WHERE is_updatable = 'YES'
-{{if eq $.DbSchema "*" }}
-AND a.table_schema NOT LIKE 'pg_%' 
-AND a.table_schema <> 'information_schema' 
-{{else}}
-AND a.table_schema = '{{$.DbSchema}}'
-{{end}}
-ORDER BY compare_name ASC;
-`
-	t := template.New("ColumnSqlTmpl")
-	template.Must(t.Parse(query))
-	return t
-}
 
 // ==================================
 // Column Rows definition
@@ -118,6 +46,10 @@ type ColumnSchema struct {
 	done     bool
 	dbSchema string
 	other    *ColumnSchema
+}
+
+func NewColumnSchema(rows ColumnRows, dbSchema string) *ColumnSchema {
+	return &ColumnSchema{rows: rows, rowNum: -1, dbSchema: dbSchema}
 }
 
 // get returns the value from the current row for the given key
@@ -309,38 +241,6 @@ func (c *ColumnSchema) Change() []Stringer {
 // ==================================
 // Standalone Functions
 // ==================================
-
-// columnSchema returns a Schema that outputs SQL to make the columns match between two databases or schemas
-func columnSchema(conn *sql.DB, dbInfo *pgutil.DbInfo, tpl *template.Template) (Schema, error) {
-
-	buf := new(bytes.Buffer)
-	err := tpl.Execute(buf, dbInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	rowChan, _ := pgutil.QueryStrings(conn, buf.String())
-
-	rows1 := make(ColumnRows, 0)
-	for row := range rowChan {
-		rows1 = append(rows1, row)
-	}
-	sort.Sort(rows1)
-
-	return &ColumnSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
-}
-
-// dBSourceColumnSchema returns a ColumnSchema that outputs SQL to make the columns match between two databases or
-// schemas
-func dBSourceColumnSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	return columnSchema(conn, dbInfo, columnSqlTemplate)
-}
-
-// dBSourceTableColumnSchema returns a ColumnSchema that outputs SQL to make the tables columns (without views columns)
-// match between two databases or schemas
-func dBSourceTableColumnSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	return columnSchema(conn, dbInfo, tableColumnSqlTemplate)
-}
 
 // getMaxLength returns the maximum length and whether or not it is valid
 func getMaxLength(maxLength string) (string, bool) {

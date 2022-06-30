@@ -7,12 +7,9 @@
 package pgdiff
 
 import (
-	"database/sql"
 	"fmt"
-	"sort"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
 
 // ==================================
@@ -43,6 +40,10 @@ type SchemataSchema struct {
 	rowNum int
 	done   bool
 	other  *SchemataSchema
+}
+
+func NewSchemataSchema(rows SchemataRows) *SchemataSchema {
+	return &SchemataSchema{rows: rows, rowNum: -1}
 }
 
 // get returns the value from the current row for the given key
@@ -92,26 +93,4 @@ func (c SchemataSchema) Drop() []Stringer {
 func (c SchemataSchema) Change() []Stringer {
 	// There's nothing we need to do here
 	return nil
-}
-
-// dBSourceSchemataSchema returns a SchemataSchema that outputs SQL to make the dbSchema names match between DBs
-func dBSourceSchemataSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	query := `
-SELECT schema_name
-    , schema_owner
-    , default_character_set_schema
-FROM information_schema.schemata
-WHERE schema_name NOT LIKE 'pg_%' 
-  AND schema_name <> 'information_schema' 
-ORDER BY schema_name;`
-
-	rowChan, _ := pgutil.QueryStrings(conn, query)
-
-	rows := make(SchemataRows, 0)
-	for row := range rowChan {
-		rows = append(rows, row)
-	}
-	sort.Sort(rows)
-
-	return &SchemataSchema{rows: rows, rowNum: -1}, nil
 }

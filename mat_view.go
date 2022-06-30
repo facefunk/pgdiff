@@ -7,12 +7,9 @@
 package pgdiff
 
 import (
-	"database/sql"
 	"fmt"
-	"sort"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
 
 // ==================================
@@ -43,6 +40,10 @@ type MatViewSchema struct {
 	rowNum int
 	done   bool
 	other  *MatViewSchema
+}
+
+func NewMatViewSchema(rows MatViewRows) *MatViewSchema {
+	return &MatViewSchema{rows: rows, rowNum: -1}
 }
 
 // get returns the value from the current row for the given key
@@ -103,33 +104,4 @@ func (c MatViewSchema) Change() []Stringer {
 		)
 	}
 	return strs
-}
-
-// dBSourceMatViewSchema returns a MatViewSchema that outputs SQL to make the matviews match between DBs
-func dBSourceMatViewSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	query := `
-	WITH matviews as ( SELECT schemaname || '.' || matviewname AS matviewname,
-	definition
-	FROM pg_catalog.pg_matviews 
-	WHERE schemaname NOT LIKE 'pg_%' 
-	)
-	SELECT
-	matviewname,
-	definition,
-	COALESCE(string_agg(indexdef, ';' || E'\n\n') || ';', '')  as indexdef
-	FROM matviews
-	LEFT JOIN  pg_catalog.pg_indexes on matviewname = schemaname || '.' || tablename
-	group by matviewname, definition
-	ORDER BY
-	matviewname;
-	`
-	rowChan, _ := pgutil.QueryStrings(conn, query)
-
-	rows := make(MatViewRows, 0)
-	for row := range rowChan {
-		rows = append(rows, row)
-	}
-	sort.Sort(rows)
-
-	return &MatViewSchema{rows: rows, rowNum: -1}, nil
 }

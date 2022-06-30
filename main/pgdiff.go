@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	"github.com/facefunk/pgdiff"
+	"github.com/facefunk/pgdiff/db"
 
 	"github.com/joncrlsn/pgutil"
+	_ "github.com/lib/pq"
 	flag "github.com/ogier/pflag"
 )
 
@@ -72,17 +74,9 @@ func main() {
 	conn2, err := dbInfo2.Open()
 	check("opening database 2", err)
 
-	var strs []pgdiff.Stringer
-
-	for _, arg := range args {
-		if arg == "ALL" {
-			for _, st := range pgdiff.AllSchemaTypes {
-				strs = append(strs, pgdiff.DBSourceCompare(conn1, conn2, dbInfo1, dbInfo2, st)...)
-			}
-			continue
-		}
-		strs = append(strs, pgdiff.DBSourceCompare(conn1, conn2, dbInfo1, dbInfo2, arg)...)
-	}
+	fac1 := db.NewDBSourceSchemaFactory(conn1, dbInfo1)
+	fac2 := db.NewDBSourceSchemaFactory(conn2, dbInfo2)
+	strs := pgdiff.CompareByFactoriesAndArgs(fac1, fac2, args)
 
 	fmt.Println("-- Run the following SQL against db2:")
 	for _, s := range strs {

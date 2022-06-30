@@ -7,43 +7,10 @@
 package pgdiff
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
-	"sort"
-	"text/template"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
-
-var (
-	foreignKeySqlTemplate = initForeignKeySqlTemplate()
-)
-
-// Initializes the Sql template
-func initForeignKeySqlTemplate() *template.Template {
-	query := `
-SELECT {{if eq $.DbSchema "*" }}ns.nspname || '.' || {{end}}cl.relname || '.' || c.conname AS compare_name
-    , ns.nspname AS schema_name
-	, cl.relname AS table_name
-    , c.conname AS fk_name
-	, pg_catalog.pg_get_constraintdef(c.oid, true) as constraint_def
-FROM pg_catalog.pg_constraint c
-INNER JOIN pg_class AS cl ON (c.conrelid = cl.oid)
-INNER JOIN pg_namespace AS ns ON (ns.oid = c.connamespace)
-WHERE c.contype = 'f'
-{{if eq $.DbSchema "*"}}
-AND ns.nspname NOT LIKE 'pg_%' 
-AND ns.nspname <> 'information_schema' 
-{{else}}
-AND ns.nspname = '{{$.DbSchema}}'
-{{end}}
-`
-	t := template.New("ForeignKeySqlTmpl")
-	template.Must(t.Parse(query))
-	return t
-}
 
 // ==================================
 // ForeignKeyRows definition
@@ -80,6 +47,10 @@ type ForeignKeySchema struct {
 	done     bool
 	dbSchema string
 	other    *ForeignKeySchema
+}
+
+func NewForeignKeySchema(rows ForeignKeyRows, dbSchema string) *ForeignKeySchema {
+	return &ForeignKeySchema{rows: rows, rowNum: -1, dbSchema: dbSchema}
 }
 
 // get returns the value from the current row for the given key
@@ -144,23 +115,4 @@ func (c ForeignKeySchema) Drop() []Stringer {
 func (c *ForeignKeySchema) Change() []Stringer {
 	// There is no "changing" a foreign key.  It either gets created or dropped (or left as-is).
 	return nil
-}
-
-// dBSourceForeignKeySchema returns a ForeignKeySchema that compares the foreign keys in the two databases.
-func dBSourceForeignKeySchema(conn1 *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	buf1 := new(bytes.Buffer)
-	err := foreignKeySqlTemplate.Execute(buf1, dbInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-
-	rows1 := make(ForeignKeyRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
-	}
-	sort.Sort(rows1)
-
-	return &ForeignKeySchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
 }

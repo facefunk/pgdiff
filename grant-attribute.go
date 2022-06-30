@@ -7,56 +7,11 @@
 package pgdiff
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
-	"sort"
 	"strings"
-	"text/template"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
-
-var (
-	grantAttributeSqlTemplate = initGrantAttributeSqlTemplate()
-)
-
-// Initializes the Sql template
-func initGrantAttributeSqlTemplate() *template.Template {
-	query := `
--- Attribute/Column ACL only
-SELECT
-  n.nspname AS schema_name
-  , {{ if eq $.DbSchema "*" }}n.nspname || '.' || {{ end }}c.relkind || '.' || c.relname || '.' || a.attname AS compare_name
-  , CASE c.relkind
-    WHEN 'r' THEN 'TABLE'
-    WHEN 'v' THEN 'VIEW'
-    WHEN 'f' THEN 'FOREIGN TABLE'
-    END as type
-  , c.relname AS relationship_name
-  , a.attname AS attribute_name
-  , a.attacl  AS attribute_acl
-FROM pg_catalog.pg_class c
-LEFT JOIN pg_catalog.pg_namespace n ON (n.oid = c.relnamespace)
-INNER JOIN (SELECT attname, unnest(attacl) AS attacl, attrelid
-           FROM pg_catalog.pg_attribute
-           WHERE NOT attisdropped AND attacl IS NOT NULL)
-      AS a ON (a.attrelid = c.oid)
-WHERE c.relkind IN ('r', 'v', 'f')
---AND pg_catalog.pg_table_is_visible(c.oid)
-{{ if eq $.DbSchema "*" }}
-AND n.nspname NOT LIKE 'pg_%'
-AND n.nspname <> 'information_schema'
-{{ else }}
-AND n.nspname = '{{ $.DbSchema }}'
-{{ end }};
-`
-
-	t := template.New("GrantAttributeSqlTmpl")
-	template.Must(t.Parse(query))
-	return t
-}
 
 // ==================================
 // GrantAttributeRows definition
@@ -103,6 +58,10 @@ type GrantAttributeSchema struct {
 	done     bool
 	dbSchema string
 	other    *GrantAttributeSchema
+}
+
+func NewGrantAttributeSchema(rows GrantAttributeRows, dbSchema string) *GrantAttributeSchema {
+	return &GrantAttributeSchema{rows: rows, rowNum: -1, dbSchema: dbSchema}
 }
 
 // get returns the value from the current row for the given key
@@ -210,28 +169,4 @@ func (c *GrantAttributeSchema) Change() []Stringer {
 	//strs = append(strs, Line(fmt.Sprintf("--1 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.get("attribute_name"), c.get("attribute_acl"), c.get("attribute_name"), c.get("attribute_acl"))))
 	//strs = append(strs, Line(fmt.Sprintf("--2 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.other.get("attribute_name"), c.other.get("attribute_acl"), c.other.get("attribute_name"), c.other.get("attribute_acl"))))
 	return strs
-}
-
-// ==================================
-// Functions
-// ==================================
-
-// dBSourceGrantAttributeSchema returns a GrantAttributeSchema that outputs SQL to make the granted permissions match
-// between DBs or schemas
-func dBSourceGrantAttributeSchema(conn1 *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	buf1 := new(bytes.Buffer)
-	err := grantAttributeSqlTemplate.Execute(buf1, dbInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-
-	rows1 := make(GrantAttributeRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
-	}
-	sort.Sort(rows1)
-
-	return &GrantAttributeSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
 }

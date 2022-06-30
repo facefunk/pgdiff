@@ -7,12 +7,9 @@
 package pgdiff
 
 import (
-	"database/sql"
 	"fmt"
-	"sort"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
 
 // ==================================
@@ -43,6 +40,10 @@ type ViewSchema struct {
 	rowNum int
 	done   bool
 	other  *ViewSchema
+}
+
+func NewViewSchema(rows ViewRows) *ViewSchema {
+	return &ViewSchema{rows: rows, rowNum: -1}
 }
 
 // get returns the value from the current row for the given key
@@ -96,25 +97,4 @@ func (c ViewSchema) Change() []Stringer {
 		Line(fmt.Sprintf("DROP VIEW %s;", c.get("viewname"))),
 		Line(fmt.Sprintf("CREATE VIEW %s AS %s", c.get("viewname"), c.get("definition"))),
 	}
-}
-
-// dBSourceViewSchema returns a ViewSchema that outputs SQL to make the views match between DBs
-func dBSourceViewSchema(conn *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	query := `
-	SELECT schemaname || '.' || viewname AS viewname
-		, definition 
-	FROM pg_views 
-	WHERE schemaname NOT LIKE 'pg_%' 
-	ORDER BY viewname;
-	`
-
-	rowChan, _ := pgutil.QueryStrings(conn, query)
-
-	rows := make(ViewRows, 0)
-	for row := range rowChan {
-		rows = append(rows, row)
-	}
-	sort.Sort(rows)
-
-	return &ViewSchema{rows: rows, rowNum: -1}, nil
 }

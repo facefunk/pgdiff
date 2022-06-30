@@ -7,45 +7,10 @@
 package pgdiff
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
-	"sort"
-	"text/template"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
-
-var (
-	tableSqlTemplate = initTableSqlTemplate()
-)
-
-// Initializes the Sql template
-func initTableSqlTemplate() *template.Template {
-
-	query := `
-SELECT table_schema
-    , {{if eq $.DbSchema "*" }}table_schema || '.' || {{end}}table_name AS compare_name
-	, table_name
-    , CASE table_type 
-	  WHEN 'BASE TABLE' THEN 'TABLE' 
-	  ELSE table_type END AS table_type
-    , is_insertable_into
-FROM information_schema.tables 
-WHERE table_type = 'BASE TABLE'
-{{if eq $.DbSchema "*" }}
-AND table_schema NOT LIKE 'pg_%' 
-AND table_schema <> 'information_schema' 
-{{else}}
-AND table_schema = '{{$.DbSchema}}'
-{{end}}
-ORDER BY compare_name;
-`
-	t := template.New("TableSqlTmpl")
-	template.Must(t.Parse(query))
-	return t
-}
 
 // ==================================
 // TableRows definition
@@ -76,6 +41,10 @@ type TableSchema struct {
 	done     bool
 	dbSchema string
 	other    *TableSchema
+}
+
+func NewTableSchema(rows TableRows, dbSchema string) *TableSchema {
+	return &TableSchema{rows: rows, rowNum: -1, dbSchema: dbSchema}
 }
 
 // get returns the value from the current row for the given key
@@ -127,23 +96,4 @@ func (c TableSchema) Drop() []Stringer {
 func (c TableSchema) Change() []Stringer {
 	// There's nothing we need to do here
 	return nil
-}
-
-// dBSourceTableSchema returns a TableSchema that outputs SQL to make the table names match between DBs
-func dBSourceTableSchema(conn1 *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	buf1 := new(bytes.Buffer)
-	err := tableSqlTemplate.Execute(buf1, dbInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-
-	rows1 := make(TableRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
-	}
-	sort.Sort(rows1)
-
-	return &TableSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
 }

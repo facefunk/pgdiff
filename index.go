@@ -7,51 +7,11 @@
 package pgdiff
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
-	"sort"
 	"strings"
-	"text/template"
 
 	"github.com/joncrlsn/misc"
-	"github.com/joncrlsn/pgutil"
 )
-
-var (
-	indexSqlTemplate = initIndexSqlTemplate()
-)
-
-// Initializes the Sql template
-func initIndexSqlTemplate() *template.Template {
-	query := `
-SELECT {{if eq $.DbSchema "*" }}n.nspname || '.' || {{end}}c.relname || '.' || c2.relname AS compare_name
-    , n.nspname AS schema_name
-    , c.relname AS table_name
-    , c2.relname AS index_name
-    , i.indisprimary AS pk
-    , i.indisunique AS uq
-    , pg_catalog.pg_get_indexdef(i.indexrelid, 0, true) AS index_def
-    , pg_catalog.pg_get_constraintdef(con.oid, true) AS constraint_def
-    , con.contype AS typ
-FROM pg_catalog.pg_index AS i
-INNER JOIN pg_catalog.pg_class AS c ON (c.oid = i.indrelid)
-INNER JOIN pg_catalog.pg_class AS c2 ON (c2.oid = i.indexrelid)
-LEFT OUTER JOIN pg_catalog.pg_constraint con
-    ON (con.conrelid = i.indrelid AND con.conindid = i.indexrelid AND con.contype IN ('p','u','x'))
-INNER JOIN pg_catalog.pg_namespace AS n ON (c2.relnamespace = n.oid)
-WHERE true
-{{if eq $.DbSchema "*"}}
-AND n.nspname NOT LIKE 'pg_%' 
-AND n.nspname <> 'information_schema' 
-{{else}}
-AND n.nspname = '{{$.DbSchema}}'
-{{end}}
-`
-	t := template.New("IndexSqlTmpl")
-	template.Must(t.Parse(query))
-	return t
-}
 
 // ==================================
 // IndexRows definition
@@ -87,6 +47,10 @@ type IndexSchema struct {
 	done     bool
 	dbSchema string
 	other    *IndexSchema
+}
+
+func NewIndexSchema(rows IndexRows, dbSchema string) *IndexSchema {
+	return &IndexSchema{rows: rows, rowNum: -1, dbSchema: dbSchema}
 }
 
 // get returns the value from the current row for the given key
@@ -278,23 +242,4 @@ func (c *IndexSchema) Change() []Stringer {
 		}
 	}
 	return strs
-}
-
-// dBSourceIndexSchema returns an IndexSchema that outputs Sql to make the indexes match between to DBs or schemas
-func dBSourceIndexSchema(conn1 *sql.DB, dbInfo *pgutil.DbInfo) (Schema, error) {
-	buf1 := new(bytes.Buffer)
-	err := indexSqlTemplate.Execute(buf1, dbInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	rowChan1, _ := pgutil.QueryStrings(conn1, buf1.String())
-
-	rows1 := make(IndexRows, 0)
-	for row := range rowChan1 {
-		rows1 = append(rows1, row)
-	}
-	sort.Sort(rows1)
-
-	return &IndexSchema{rows: rows1, rowNum: -1, dbSchema: dbInfo.DbSchema}, nil
 }
