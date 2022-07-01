@@ -10,6 +10,8 @@ pgdiff is written to be easy to expand and improve the accuracy of the diff.
 ### download 1.0 beta 1
 [osx](https://github.com/joncrlsn/pgdiff/releases/download/v1.0-beta.1/pgdiff-osx-1.0b1.tar.gz "OSX version") &nbsp; [linux](https://github.com/joncrlsn/pgdiff/files/1480823/pgdiff-linux-1.0b1.tar.gz  "Linux version") &nbsp; [windows](https://github.com/joncrlsn/pgdiff/releases/download/v1.0-beta.1/pgdiff-win-1.0b1.zip "Windows version")
 
+### build
+    go build main/pgdiff.go
 
 ### usage
 	pgdiff [options] <schemaType>
@@ -23,20 +25,26 @@ In addition, some types can have dependencies which are not in the right order. 
 Schema type ordering:
 
 1. SCHEMA
-1. ROLE
-1. SEQUENCE
-1. TABLE
-1. COLUMN
-1. INDEX
-1. VIEW
-1. FOREIGN\_KEY
-1. FUNCTION
-1. TRIGGER
-1. OWNER
-1. GRANT\_RELATIONSHIP
-1. GRANT\_ATTRIBUTE
-1. ALL (all above in one run)
+2. ROLE
+3. SEQUENCE
+4. TABLE
+5. COLUMN
+6. INDEX
+7. VIEW
+8. MATVIEW
+9. FOREIGN\_KEY
+10. FUNCTION
+11. TRIGGER
+12. OWNER
+13. GRANT\_RELATIONSHIP
+14. GRANT\_ATTRIBUTE
 
+As well as the above, the following special schema types are also available
+
+1. ALL (all above in one run)
+2. TABLE\_COLUMN (table columns only, no view columns)
+
+Any combination of schema types may be specified, separated by spaces.
 
 ### example
 I have found it helpful to take ```--schema-only``` dumps of the databases in question, load them into a local postgres, then do my sql generation and testing there before running the SQL against a more official database. Your local postgres instance will need the correct users/roles populated because db dumps do not copy that information.

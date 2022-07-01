@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	version = "0.9.3"
+	version = "1.0-fcfnk.1"
 )
 
 var (
