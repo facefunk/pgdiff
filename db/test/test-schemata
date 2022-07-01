@@ -27,7 +27,7 @@ echo "#   Add schema on db2:     s2 "
 echo "#   Drop schema from db2:  s3 "
 echo
 
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db2" -s "*" -o "sslmode=disable" \
           SCHEMA | grep -v '^-- '
 echo

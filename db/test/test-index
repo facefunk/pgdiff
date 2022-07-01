@@ -37,7 +37,7 @@ echo "#   Add index on s2.table1.name"
 echo "#   Drop index on s2.table1.url"
 echo
 
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db1" -s "s2" -o "sslmode=disable" \
           INDEX | grep -v '^-- '
 echo
@@ -73,7 +73,7 @@ echo "#   Drop index on db2 s1.table1.url"
 echo "#   Add index on db2 s2.table1.url"
 echo
 
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db2" -s "*" -o "sslmode=disable" \
           INDEX | grep -v '^-- '
 echo

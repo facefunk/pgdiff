@@ -40,7 +40,7 @@ echo "#   Grant INSERT, UPDATE on s2.table1 for u2"
 echo "#   Grant SELECT on s2.table3 for u2"
 echo
 
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db1" -s "s2" -o "sslmode=disable" \
           GRANT_RELATIONSHIP #| grep -v '^-- '
 
@@ -79,7 +79,7 @@ echo "#   Grant  INSERT,UPDATE on s1.table1 for u2"
 echo "#   Revoke SELECT        on s1.table1 for u2"
 echo
 
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db2" -s "*" -o "sslmode=disable" \
           GRANT_RELATIONSHIP #| grep -v '^-- '
 echo

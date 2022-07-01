@@ -37,7 +37,7 @@ echo "#   Change s2.table10.id to bigint"
 echo "#   Drop s2.table11.id"
 
 echo
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db1" -s "s2" -o "sslmode=disable" \
           COLUMN | grep -v '^-- '
 
@@ -70,7 +70,7 @@ echo "#   Add s1.table10.id"
 echo "#   Drop s1.table11.dropme"
 echo
 
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db2" -s "*" -o "sslmode=disable" \
           COLUMN | grep -v '^-- '
 echo
@@ -97,7 +97,7 @@ echo "#   Add s4.table12.ids int4[]"
 echo "#   Change s4.table12.bigids from to int8[]"
 echo
 
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s3" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s3" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db1" -s "s4" -o "sslmode=disable" \
           COLUMN | grep -v '^-- '
 echo

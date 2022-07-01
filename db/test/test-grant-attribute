@@ -57,7 +57,7 @@ echo "#   Revoke SELECT     (name) on s2.table2 for u2"
 echo "#   Grant  SELECT     (name) on s2.table3 for u2"
 echo
 
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db1" -s "s2" -o "sslmode=disable" \
           GRANT_ATTRIBUTE | grep -v '^-- '
 
@@ -115,7 +115,7 @@ echo "#   Revoke UPDATE     (name) on s2.table3 for u2"
 echo "#   Grant  UPDATE     (name) on s2.table4 for u2"
 echo
 
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db2" -s "*" -o "sslmode=disable" \
           GRANT_ATTRIBUTE | grep -v '^-- '
 echo

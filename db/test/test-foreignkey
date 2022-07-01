@@ -48,7 +48,7 @@ echo "#   Add foreign key on s2.table2.table1_id"
 echo "#   Drop foreign key from s2.table3.table2_id"
 echo
 
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db1" -s "s2" -o "sslmode=disable" \
           FOREIGN_KEY | grep -v '^-- '
 
@@ -96,7 +96,7 @@ echo "#   Add foreign key on db2.s1.table2.table1_id"
 echo "#   Drop foreign key on db2.s2.table2.table1_id"
 
 echo
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "*" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db2" -s "*" -o "sslmode=disable" \
           FOREIGN_KEY | grep -v '^-- '
 echo

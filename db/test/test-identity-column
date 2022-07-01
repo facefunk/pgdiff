@@ -36,7 +36,7 @@ echo "#   Change s2.table13.id2 to bigint, add identity"
 echo "#   Add s2.table13.id3"
 
 echo
-../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
+../../pgdiff -U "u1" -W "asdf" -H "localhost" -D "db1" -S "s1" -O "sslmode=disable" \
           -u "u1" -w "asdf" -h "localhost" -d "db1" -s "s2" -o "sslmode=disable" \
           COLUMN | grep -v '^-- '
 echo
