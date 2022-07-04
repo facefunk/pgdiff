@@ -9,8 +9,8 @@ import (
 
 	"github.com/facefunk/pgdiff"
 	"github.com/facefunk/pgdiff/db"
+	"gopkg.in/yaml.v3"
 
-	"github.com/joncrlsn/pgutil"
 	_ "github.com/lib/pq"
 	flag "github.com/ogier/pflag"
 )
@@ -19,26 +19,23 @@ const (
 	version = "1.0-fcfnk.1"
 )
 
-var (
-	args       []string
-	dbInfo1    *pgutil.DbInfo
-	dbInfo2    *pgutil.DbInfo
-	schemaType string
-)
-
 /*
  * Do the main logic
  */
 func main() {
-	flag.Usage = usage
-
 	var helpPtr = flag.BoolP("help", "?", false, "print help information")
 	var versionPtr = flag.BoolP("version", "V", false, "print version information")
+	var configPtr = flag.StringP("config", "c", "", "load configuration from YAML file")
 
-	dbInfo1, dbInfo2 = parseFlags()
+	modules := []pgdiff.Module{
+		&db.Module{},
+	}
+	for _, mod := range modules {
+		mod.RegisterFlags(flag.CommandLine)
+	}
 
-	// Remaining args:
-	args = flag.Args()
+	flag.Usage = usage
+	flag.Parse()
 
 	if *helpPtr {
 		usage()
@@ -52,65 +49,53 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Remaining args:
+	args := flag.Args()
 	if len(args) == 0 {
-		fmt.Println("The required first argument is SchemaType: SCHEMA, ROLE, SEQUENCE, TABLE, VIEW, MATVIEW, COLUMN, INDEX, FOREIGN_KEY, OWNER, GRANT_RELATIONSHIP, GRANT_ATTRIBUTE")
-		os.Exit(1)
+		log.Fatal("The required first argument is SchemaType: SCHEMA, ROLE, SEQUENCE, TABLE, VIEW, MATVIEW, COLUMN, INDEX, FOREIGN_KEY, OWNER, GRANT_RELATIONSHIP, GRANT_ATTRIBUTE")
+	}
+
+	if *configPtr != "" {
+		file, err := os.Open(*configPtr)
+		check("opening config file", err)
+		decoder := yaml.NewDecoder(file)
+		for _, mod := range modules {
+			err = decoder.Decode(mod)
+			check("decoding config file", err)
+		}
+	} else {
+		for _, mod := range modules {
+			mod.ConfigureFromFlags()
+		}
+	}
+
+	facs := make([]pgdiff.SchemaFactory, 3)
+	dbSchemas := make([]string, 3)
+confNum:
+	for i := 1; i <= 2; i++ {
+		for _, mod := range modules {
+			conf := mod.Config(i)
+			if conf.Valid() {
+				dbSchemas[i] = conf.DBSchema()
+				fac, err := mod.Factory(conf)
+				check("initialising SchemaFactory", err)
+				facs[i] = fac
+				continue confNum
+			}
+		}
+		log.Fatal("Error: two properly configured datasources required.")
 	}
 
 	// Verify schemas
-	schemas := dbInfo1.DbSchema + dbInfo2.DbSchema
+	schemas := dbSchemas[1] + dbSchemas[2]
 	if schemas != "**" && strings.Contains(schemas, "*") {
-		fmt.Println("If one schema is an asterisk, both must be.")
-		os.Exit(1)
+		log.Fatal("If one schema is an asterisk, both must be.")
 	}
 
-	schemaType = strings.ToUpper(strings.Join(args, " "))
-	fmt.Println("-- schemaType:", schemaType)
-
-	fmt.Println("-- db1:", *dbInfo1)
-	fmt.Println("-- db2:", *dbInfo2)
-
-	conn1, err := dbInfo1.Open()
-	check("opening database 1", err)
-
-	conn2, err := dbInfo2.Open()
-	check("opening database 2", err)
-
-	fac1 := db.NewDBSourceSchemaFactory(conn1, dbInfo1)
-	fac2 := db.NewDBSourceSchemaFactory(conn2, dbInfo2)
-	strs := pgdiff.CompareByFactoriesAndArgs(fac1, fac2, args)
-
-	fmt.Println("-- Run the following SQL against db2:")
+	strs := pgdiff.CompareByFactoriesAndArgs(facs[1], facs[2], args)
 	for _, s := range strs {
 		fmt.Println(s.String())
 	}
-}
-
-func parseFlags() (*pgutil.DbInfo, *pgutil.DbInfo) {
-
-	var dbUser1 = flag.StringP("user1", "U", "", "first postgres user")
-	var dbPass1 = flag.StringP("password1", "W", "", "first database password")
-	var dbHost1 = flag.StringP("host1", "H", "localhost", "first database host")
-	var dbPort1 = flag.IntP("port1", "P", 5432, "first port")
-	var dbName1 = flag.StringP("dbname1", "D", "", "first database name")
-	var dbSchema1 = flag.StringP("schema1", "S", "*", "first schema name or * for all schemas")
-	var dbOptions1 = flag.StringP("options1", "O", "", "first database options (eg. sslmode=disable)")
-
-	var dbUser2 = flag.StringP("user2", "u", "", "second postgres user")
-	var dbPass2 = flag.StringP("password2", "w", "", "second database password")
-	var dbHost2 = flag.StringP("host2", "h", "localhost", "second postgres host")
-	var dbPort2 = flag.IntP("port2", "p", 5432, "second port")
-	var dbName2 = flag.StringP("dbname2", "d", "", "second database name")
-	var dbSchema2 = flag.StringP("schema2", "s", "*", "second schema name or * for all schemas")
-	var dbOptions2 = flag.StringP("options2", "o", "", "second database options (eg. sslmode=disable)")
-
-	flag.Parse()
-
-	dbInfo1 := pgutil.DbInfo{DbName: *dbName1, DbHost: *dbHost1, DbPort: int32(*dbPort1), DbUser: *dbUser1, DbPass: *dbPass1, DbSchema: *dbSchema1, DbOptions: *dbOptions1}
-
-	dbInfo2 := pgutil.DbInfo{DbName: *dbName2, DbHost: *dbHost2, DbPort: int32(*dbPort2), DbUser: *dbUser2, DbPass: *dbPass2, DbSchema: *dbSchema2, DbOptions: *dbOptions2}
-
-	return &dbInfo1, &dbInfo2
 }
 
 func usage() {

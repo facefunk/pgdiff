@@ -6,7 +6,12 @@
 
 package pgdiff
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+
+	flag "github.com/ogier/pflag"
+)
 
 const (
 	AllSchemaType               = "ALL"
@@ -74,6 +79,22 @@ type (
 		Owner() (*OwnerSchema, error)
 		GrantRelationship() (*GrantRelationshipSchema, error)
 		GrantAttribute() (*GrantAttributeSchema, error)
+		Identify(num int) *Notice
+	}
+
+	// Module is a super-factory. Each Module instance decodes a different type of config from either command line
+	// arguments or config file and produces SchemaFactory instances based on that config.
+	Module interface {
+		RegisterFlags(flagSet *flag.FlagSet)
+		ConfigureFromFlags()
+		Config(i int) Config
+		Factory(conf Config) (SchemaFactory, error)
+	}
+
+	// Config is a decoded configuration instance.
+	Config interface {
+		Valid() bool
+		DBSchema() string
 	}
 
 	// Stringer simply returns a string. Allows a slice of Stringer to be returned from a function, which can then be
@@ -160,7 +181,13 @@ func CompareByFactories(fac1 SchemaFactory, fac2 SchemaFactory, schemaType strin
 // CompareByFactoriesAndArgs is the main command-line compare function. It runs one comparison between sources
 // represented by fac1 and fac2 for each schema type listed in args.
 func CompareByFactoriesAndArgs(fac1 SchemaFactory, fac2 SchemaFactory, args []string) []Stringer {
-	var strs []Stringer
+	schemaType := strings.ToUpper(strings.Join(args, " "))
+	strs := []Stringer{
+		Notice("-- schemaType: " + schemaType),
+		fac1.Identify(1),
+		fac2.Identify(2),
+		Notice("-- Run the following SQL against db2:"),
+	}
 	for _, arg := range args {
 		if arg == AllSchemaType {
 			for _, st := range AllSchemaTypes {

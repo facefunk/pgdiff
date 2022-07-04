@@ -1,0 +1,12 @@
+db1:
+  user: u1
+  pass: asdf
+  name: db1
+  schema: s1
+  options: sslmode=disable
+db2:
+  user: u1
+  pass: asdf
+  name: db1
+  schema: s2
+  options: sslmode=disable

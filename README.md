@@ -7,8 +7,8 @@ pgdiff is transparent in what it does, so it never modifies a database directly.
 pgdiff is written to be easy to expand and improve the accuracy of the diff.
 
 
-### download 1.0 beta 1
-[osx](https://github.com/joncrlsn/pgdiff/releases/download/v1.0-beta.1/pgdiff-osx-1.0b1.tar.gz "OSX version") &nbsp; [linux](https://github.com/joncrlsn/pgdiff/files/1480823/pgdiff-linux-1.0b1.tar.gz  "Linux version") &nbsp; [windows](https://github.com/joncrlsn/pgdiff/releases/download/v1.0-beta.1/pgdiff-win-1.0b1.zip "Windows version")
+### repository status
+This repository represents an attempt to adapt pgdiff into a Go library that can be easily integrated into Go based devlopment pipelines, it is currently in flux and still very much in beta. If you'd like to download binaries or work with the included scripts please visit the original pgdiff repository at [github.com/joncrlsn/pgdiff](https://github.com/joncrlsn/pgdiff).
 
 ### build
     go build main/pgdiff.go
@@ -49,12 +49,32 @@ Any combination of schema types may be specified, separated by spaces.
 ### example
 I have found it helpful to take ```--schema-only``` dumps of the databases in question, load them into a local postgres, then do my sql generation and testing there before running the SQL against a more official database. Your local postgres instance will need the correct users/roles populated because db dumps do not copy that information.
 
-```
+```shell
 pgdiff -U dbuser -H localhost -D refDB  -O "sslmode=disable" -S public \
        -u dbuser -h localhost -d compDB -o "sslmode=disable" -s public \
        TABLE 
 ```
-
+```shell
+pgdiff -c config-file.yaml TABLE 
+```
+```yaml
+db1:
+  user: dbuser
+  pass: password
+  host: localhost
+  port: 5432
+  name: refDB
+  schema: public
+  options: sslmode=disable
+db2:
+  user: dbuser
+  pass: password
+  host: localhost
+  port: 5432
+  name: compDB
+  schema: public
+  options: sslmode=disable
+```
 
 ### options
 
@@ -76,40 +96,13 @@ pgdiff -U dbuser -H localhost -D refDB  -O "sslmode=disable" -S public \
 |   -s, --schema2 | second schema name. default is * (all non-system schemas) |
 |   -O, --option1 | first db options. example: sslmode=disable                |
 |   -o, --option2 | second db options. example: sslmode=disable               |
-
-### getting started on linux and osx
-
-linux and osx binaries are packaged with an extra, optional bash script and pgrun program that helps speed the diffing process. 
-
-1. download the tgz file for your OS
-1. untar it:  ```tar -xzvf pgdiff.tgz```
-1. cd to the new pgdiff directory
-1. edit the db connection defaults in pgdiff.sh 
-1. ...or manually run pgdiff for each schema type listed in the usage section above
-1. review the SQL output for each schema type and, if you want to make them match, run it against the second db
-
-
-### getting started on Windows
-
-1. download pgdiff.exe from the bin-win directory on GitHub
-1. either install cygwin so you can run pgdiff.sh or...
-1. manually run pgdiff.exe for each schema type listed in the usage section above
-1. review the SQL output and, if you want to make them match, run it against the second db
-
-This project works on Windows, just not as nicely as it does for Linux and Mac.  If you are inclined to write a Windows complement to the pgdiff.sh script, feel free to contribute it, or we can link to it.  Even better would be a replacement written in Go.
-
-
-### version history
-* 0.9.0 - Implemented ROLE, SEQUENCE, TABLE, COLUMN, INDEX, FOREIGN\_KEY, OWNER, GRANT\_RELATIONSHIP, GRANT\_ATTRIBUTE
-* 0.9.1 - Added VIEW, FUNCTION, and TRIGGER (Thank you, Shawn Carroll AKA SparkeyG)
-* 0.9.2 - Fixed bug when using the non-default port
-* 0.9.3 - Fixed VARCHAR bug when no max length specified
-* 1.0.0 - Adding support for comparing two different schemas (same or different db), one schema between databases, or all schemas between databases. (Also removed binaries from git repository)
+|    -c, --config | load configuration from YAML file                         |
 
 ### getting help
 If you think you found a bug, it might help replicate it if you find the appropriate test script (in the test directory) and modify it to show the problem.  Attach the script to an Issue request.
 
 ### todo
+* add module providing SQL file data source
 * fix SQL for adding an array column
 * create Windows version of pgdiff.sh (or even better: re-write it all in Go)
 * allow editing of individual SQL lines after failure (this would probably be done in the script pgdiff.sh)

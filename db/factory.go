@@ -3,6 +3,7 @@ package db
 import (
 	"bytes"
 	"database/sql"
+	"fmt"
 	"sort"
 	"text/template"
 
@@ -10,13 +11,13 @@ import (
 	"github.com/joncrlsn/pgutil"
 )
 
-type DBSourceSchemaFactory struct {
+type SchemaFactory struct {
 	conn   *sql.DB
 	dbInfo *pgutil.DbInfo
 }
 
-func NewDBSourceSchemaFactory(conn *sql.DB, dbInfo *pgutil.DbInfo) pgdiff.SchemaFactory {
-	return &DBSourceSchemaFactory{conn, dbInfo}
+func NewSchemaFactory(conn *sql.DB, dbInfo *pgutil.DbInfo) pgdiff.SchemaFactory {
+	return &SchemaFactory{conn, dbInfo}
 }
 
 // columnSchema returns a Schema that outputs SQL to make the columns match between two databases or schemas
@@ -40,18 +41,18 @@ func columnSchema(conn *sql.DB, dbInfo *pgutil.DbInfo, tpl *template.Template) (
 
 // Column returns a ColumnSchema that outputs SQL to make the columns match between two databases or
 // schemas
-func (f *DBSourceSchemaFactory) Column() (*pgdiff.ColumnSchema, error) {
+func (f *SchemaFactory) Column() (*pgdiff.ColumnSchema, error) {
 	return columnSchema(f.conn, f.dbInfo, columnSqlTemplate)
 }
 
 // TableColumn returns a ColumnSchema that outputs SQL to make the tables columns (without views columns)
 // match between two databases or schemas
-func (f *DBSourceSchemaFactory) TableColumn() (*pgdiff.ColumnSchema, error) {
+func (f *SchemaFactory) TableColumn() (*pgdiff.ColumnSchema, error) {
 	return columnSchema(f.conn, f.dbInfo, tableColumnSqlTemplate)
 }
 
 // ForeignKey returns a ForeignKeySchema that compares the foreign keys in the two databases.
-func (f *DBSourceSchemaFactory) ForeignKey() (*pgdiff.ForeignKeySchema, error) {
+func (f *SchemaFactory) ForeignKey() (*pgdiff.ForeignKeySchema, error) {
 	buf := new(bytes.Buffer)
 	err := foreignKeySqlTemplate.Execute(buf, f.dbInfo)
 	if err != nil {
@@ -70,7 +71,7 @@ func (f *DBSourceSchemaFactory) ForeignKey() (*pgdiff.ForeignKeySchema, error) {
 }
 
 // Function returns a FunctionSchema that outputs SQL to make the functions match between DBs
-func (f *DBSourceSchemaFactory) Function() (*pgdiff.FunctionSchema, error) {
+func (f *SchemaFactory) Function() (*pgdiff.FunctionSchema, error) {
 	buf := new(bytes.Buffer)
 	err := functionSqlTemplate.Execute(buf, f.dbInfo)
 	if err != nil {
@@ -90,7 +91,7 @@ func (f *DBSourceSchemaFactory) Function() (*pgdiff.FunctionSchema, error) {
 
 // GrantAttribute returns a GrantAttributeSchema that outputs SQL to make the granted permissions match
 // between DBs or schemas
-func (f *DBSourceSchemaFactory) GrantAttribute() (*pgdiff.GrantAttributeSchema, error) {
+func (f *SchemaFactory) GrantAttribute() (*pgdiff.GrantAttributeSchema, error) {
 	buf := new(bytes.Buffer)
 	err := grantAttributeSqlTemplate.Execute(buf, f.dbInfo)
 	if err != nil {
@@ -110,7 +111,7 @@ func (f *DBSourceSchemaFactory) GrantAttribute() (*pgdiff.GrantAttributeSchema, 
 
 // GrantRelationship returns a GrantRelationshipSchema that outputs SQL to make the granted permissions
 // match between DBs or schemas
-func (f *DBSourceSchemaFactory) GrantRelationship() (*pgdiff.GrantRelationshipSchema, error) {
+func (f *SchemaFactory) GrantRelationship() (*pgdiff.GrantRelationshipSchema, error) {
 	buf := new(bytes.Buffer)
 	err := grantRelationshipSqlTemplate.Execute(buf, f.dbInfo)
 	if err != nil {
@@ -129,7 +130,7 @@ func (f *DBSourceSchemaFactory) GrantRelationship() (*pgdiff.GrantRelationshipSc
 }
 
 // Index returns an IndexSchema that outputs Sql to make the indexes match between to DBs or schemas
-func (f *DBSourceSchemaFactory) Index() (*pgdiff.IndexSchema, error) {
+func (f *SchemaFactory) Index() (*pgdiff.IndexSchema, error) {
 	buf := new(bytes.Buffer)
 	err := indexSqlTemplate.Execute(buf, f.dbInfo)
 	if err != nil {
@@ -148,7 +149,7 @@ func (f *DBSourceSchemaFactory) Index() (*pgdiff.IndexSchema, error) {
 }
 
 // MatView returns a MatViewSchema that outputs SQL to make the matviews match between DBs
-func (f *DBSourceSchemaFactory) MatView() (*pgdiff.MatViewSchema, error) {
+func (f *SchemaFactory) MatView() (*pgdiff.MatViewSchema, error) {
 
 	rowChan, _ := pgutil.QueryStrings(f.conn, matViewSql)
 
@@ -163,7 +164,7 @@ func (f *DBSourceSchemaFactory) MatView() (*pgdiff.MatViewSchema, error) {
 
 // Owner returns an OwnerSchema that compares the ownership of tables, sequences, and views between two
 // databases or schemas
-func (f *DBSourceSchemaFactory) Owner() (*pgdiff.OwnerSchema, error) {
+func (f *SchemaFactory) Owner() (*pgdiff.OwnerSchema, error) {
 	buf := new(bytes.Buffer)
 	err := ownerSqlTemplate.Execute(buf, f.dbInfo)
 	if err != nil {
@@ -182,7 +183,7 @@ func (f *DBSourceSchemaFactory) Owner() (*pgdiff.OwnerSchema, error) {
 }
 
 // Role returns a RoleSchema that compares the roles between two databases or schemas.
-func (f *DBSourceSchemaFactory) Role() (*pgdiff.RoleSchema, error) {
+func (f *SchemaFactory) Role() (*pgdiff.RoleSchema, error) {
 
 	rowChan, _ := pgutil.QueryStrings(f.conn, roleSql)
 
@@ -196,7 +197,7 @@ func (f *DBSourceSchemaFactory) Role() (*pgdiff.RoleSchema, error) {
 }
 
 // Schemata returns a SchemataSchema that outputs SQL to make the dbSchema names match between DBs
-func (f *DBSourceSchemaFactory) Schemata() (*pgdiff.SchemataSchema, error) {
+func (f *SchemaFactory) Schemata() (*pgdiff.SchemataSchema, error) {
 	rowChan, _ := pgutil.QueryStrings(f.conn, schemataSql)
 
 	rows := make(pgdiff.SchemataRows, 0)
@@ -209,7 +210,7 @@ func (f *DBSourceSchemaFactory) Schemata() (*pgdiff.SchemataSchema, error) {
 }
 
 // Sequence returns a SequenceSchema that outputs SQL to make the sequences match between DBs or schemas
-func (f *DBSourceSchemaFactory) Sequence() (*pgdiff.SequenceSchema, error) {
+func (f *SchemaFactory) Sequence() (*pgdiff.SequenceSchema, error) {
 	buf := new(bytes.Buffer)
 	err := sequenceSqlTemplate.Execute(buf, f.dbInfo)
 	if err != nil {
@@ -228,7 +229,7 @@ func (f *DBSourceSchemaFactory) Sequence() (*pgdiff.SequenceSchema, error) {
 }
 
 // Table returns a TableSchema that outputs SQL to make the table names match between DBs
-func (f *DBSourceSchemaFactory) Table() (*pgdiff.TableSchema, error) {
+func (f *SchemaFactory) Table() (*pgdiff.TableSchema, error) {
 	buf := new(bytes.Buffer)
 	err := tableSqlTemplate.Execute(buf, f.dbInfo)
 	if err != nil {
@@ -247,7 +248,7 @@ func (f *DBSourceSchemaFactory) Table() (*pgdiff.TableSchema, error) {
 }
 
 // Trigger returns a TriggerSchema that outputs SQL to make the triggers match between DBs
-func (f *DBSourceSchemaFactory) Trigger() (*pgdiff.TriggerSchema, error) {
+func (f *SchemaFactory) Trigger() (*pgdiff.TriggerSchema, error) {
 	buf := new(bytes.Buffer)
 	err := triggerSqlTemplate.Execute(buf, f.dbInfo)
 	if err != nil {
@@ -266,7 +267,7 @@ func (f *DBSourceSchemaFactory) Trigger() (*pgdiff.TriggerSchema, error) {
 }
 
 // View returns a ViewSchema that outputs SQL to make the views match between DBs
-func (f *DBSourceSchemaFactory) View() (*pgdiff.ViewSchema, error) {
+func (f *SchemaFactory) View() (*pgdiff.ViewSchema, error) {
 	rowChan, _ := pgutil.QueryStrings(f.conn, viewSql)
 
 	rows := make(pgdiff.ViewRows, 0)
@@ -276,4 +277,9 @@ func (f *DBSourceSchemaFactory) View() (*pgdiff.ViewSchema, error) {
 	sort.Sort(rows)
 
 	return pgdiff.NewViewSchema(rows), nil
+}
+
+func (f *SchemaFactory) Identify(num int) *pgdiff.Notice {
+	n := pgdiff.Notice(fmt.Sprintf("-- db%d: %v", num, *f.dbInfo))
+	return &n
 }
