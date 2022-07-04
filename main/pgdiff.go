@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -29,6 +30,7 @@ var (
  * Do the main logic
  */
 func main() {
+	flag.Usage = usage
 
 	var helpPtr = flag.BoolP("help", "?", false, "print help information")
 	var versionPtr = flag.BoolP("version", "V", false, "print version information")
@@ -86,21 +88,21 @@ func main() {
 
 func parseFlags() (*pgutil.DbInfo, *pgutil.DbInfo) {
 
-	var dbUser1 = flag.StringP("user1", "U", "", "db user")
-	var dbPass1 = flag.StringP("password1", "W", "", "db password")
-	var dbHost1 = flag.StringP("host1", "H", "localhost", "db host")
-	var dbPort1 = flag.IntP("port1", "P", 5432, "db port")
-	var dbName1 = flag.StringP("dbname1", "D", "", "db name")
-	var dbSchema1 = flag.StringP("schema1", "S", "*", "schema name or * for all schemas")
-	var dbOptions1 = flag.StringP("options1", "O", "", "db options (eg. sslmode=disable)")
+	var dbUser1 = flag.StringP("user1", "U", "", "first postgres user")
+	var dbPass1 = flag.StringP("password1", "W", "", "first database password")
+	var dbHost1 = flag.StringP("host1", "H", "localhost", "first database host")
+	var dbPort1 = flag.IntP("port1", "P", 5432, "first port")
+	var dbName1 = flag.StringP("dbname1", "D", "", "first database name")
+	var dbSchema1 = flag.StringP("schema1", "S", "*", "first schema name or * for all schemas")
+	var dbOptions1 = flag.StringP("options1", "O", "", "first database options (eg. sslmode=disable)")
 
-	var dbUser2 = flag.StringP("user2", "u", "", "db user")
-	var dbPass2 = flag.StringP("password2", "w", "", "db password")
-	var dbHost2 = flag.StringP("host2", "h", "localhost", "db host")
-	var dbPort2 = flag.IntP("port2", "p", 5432, "db port")
-	var dbName2 = flag.StringP("dbname2", "d", "", "db name")
-	var dbSchema2 = flag.StringP("schema2", "s", "*", "schema name or * for all schemas")
-	var dbOptions2 = flag.StringP("options2", "o", "", "db options (eg. sslmode=disable)")
+	var dbUser2 = flag.StringP("user2", "u", "", "second postgres user")
+	var dbPass2 = flag.StringP("password2", "w", "", "second database password")
+	var dbHost2 = flag.StringP("host2", "h", "localhost", "second postgres host")
+	var dbPort2 = flag.IntP("port2", "p", 5432, "second port")
+	var dbName2 = flag.StringP("dbname2", "d", "", "second database name")
+	var dbSchema2 = flag.StringP("schema2", "s", "*", "second schema name or * for all schemas")
+	var dbOptions2 = flag.StringP("options2", "o", "", "second database options (eg. sslmode=disable)")
 
 	flag.Parse()
 
@@ -118,23 +120,9 @@ func usage() {
 Compares the schema between two PostgreSQL databases and generates alter statements 
 that can be *manually* run against the second database.
 
-Options:
-  -?, --help    : print help information
-  -V, --version : print version information
-  -v, --verbose : print extra run information
-  -U, --user1   : first postgres user 
-  -u, --user2   : second postgres user 
-  -H, --host1   : first database host.  default is localhost 
-  -h, --host2   : second database host. default is localhost 
-  -P, --port1   : first port.  default is 5432 
-  -p, --port2   : second port. default is 5432 
-  -D, --dbname1 : first database name 
-  -d, --dbname2 : second database name 
-  -S, --schema1 : first schema.  default is all schemas
-  -s, --schema2 : second schema. default is all schemas
-
-<schemaTpe> can be: ALL, SCHEMA, ROLE, SEQUENCE, TABLE, TABLE_COLUMN, VIEW, MATVIEW, COLUMN, INDEX, FOREIGN_KEY, OWNER, GRANT_RELATIONSHIP, GRANT_ATTRIBUTE, TRIGGER, FUNCTION`)
-
+Options:`)
+	fmt.Println(alignedFlagDefaults())
+	fmt.Println("<schemaTpe> can be: ALL, SCHEMA, ROLE, SEQUENCE, TABLE, TABLE_COLUMN, VIEW, MATVIEW, COLUMN, INDEX, FOREIGN_KEY, OWNER, GRANT_RELATIONSHIP, GRANT_ATTRIBUTE, TRIGGER, FUNCTION")
 	os.Exit(2)
 }
 
@@ -142,4 +130,28 @@ func check(msg string, err error) {
 	if err != nil {
 		log.Fatal("Error "+msg, err)
 	}
+}
+
+func alignedFlagDefaults() string {
+	var buf bytes.Buffer
+	flag.CommandLine.SetOutput(&buf)
+	flag.PrintDefaults()
+	flag.CommandLine.SetOutput(os.Stderr)
+	def := buf.String()
+	lines := strings.Split(def, "\n")
+	max := 0
+	l := len(lines) - 1
+	pos := make([]int, l)
+	for i := 0; i < l; i++ {
+		p := strings.Index(lines[i], ":")
+		pos[i] = p
+		if p > max {
+			max = p
+		}
+	}
+	max += 1
+	for i := 0; i < l; i++ {
+		lines[i] = lines[i][:pos[i]] + strings.Repeat(" ", max-pos[i]) + lines[i][pos[i]:]
+	}
+	return strings.Join(lines, "\n")
 }
