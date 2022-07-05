@@ -15,10 +15,6 @@ import (
 	flag "github.com/ogier/pflag"
 )
 
-const (
-	version = "1.0-fcfnk.1"
-)
-
 /*
  * Do the main logic
  */
@@ -42,7 +38,7 @@ func main() {
 	}
 
 	if *versionPtr {
-		fmt.Fprintf(os.Stderr, "%s - version %s\n", os.Args[0], version)
+		fmt.Fprintf(os.Stderr, "%s - version %s\n", os.Args[0], pgdiff.Version)
 		fmt.Fprintln(os.Stderr, "Copyright (c) 2017 Jon Carlson.  All rights reserved.")
 		fmt.Fprintln(os.Stderr, "Use of this source code is governed by the MIT license")
 		fmt.Fprintln(os.Stderr, "that can be found here: http://opensource.org/licenses/MIT")
@@ -99,7 +95,7 @@ confNum:
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "%s - version %s\n", os.Args[0], version)
+	fmt.Fprintf(os.Stderr, "%s - version %s\n", os.Args[0], pgdiff.Version)
 	fmt.Fprintf(os.Stderr, "usage: %s [<options>] <schemaType> \n", os.Args[0])
 	fmt.Fprintln(os.Stderr, `
 Compares the schema between two PostgreSQL databases and generates alter statements 

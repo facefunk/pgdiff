@@ -1,0 +1,11 @@
+#!/bin/bash
+#
+# Update version number.
+#
+
+worktree=$(pwd)
+shortHash=$(git rev-parse --short HEAD)
+file=version.go
+
+sed -E -i "s/(Version = \".+\.)[^\.\"]+\"/\1$shortHash\"/" "$file"
+git --git-dir "$worktree/.git" --work-tree "$worktree" add -v "$file"
