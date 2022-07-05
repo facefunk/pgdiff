@@ -52,7 +52,7 @@ func main() {
 	// Remaining args:
 	args := flag.Args()
 	if len(args) == 0 {
-		log.Fatal("The required first argument is SchemaType: SCHEMA, ROLE, SEQUENCE, TABLE, VIEW, MATVIEW, COLUMN, INDEX, FOREIGN_KEY, OWNER, GRANT_RELATIONSHIP, GRANT_ATTRIBUTE")
+		log.Fatal("The required first argument is SchemaType: " + pgdiff.SchemaTypes)
 	}
 
 	if *configPtr != "" {
@@ -107,7 +107,7 @@ that can be *manually* run against the second database.
 
 Options:`)
 	fmt.Println(alignedFlagDefaults())
-	fmt.Println("<schemaTpe> can be: ALL, SCHEMA, ROLE, SEQUENCE, TABLE, TABLE_COLUMN, VIEW, MATVIEW, COLUMN, INDEX, FOREIGN_KEY, OWNER, GRANT_RELATIONSHIP, GRANT_ATTRIBUTE, TRIGGER, FUNCTION")
+	fmt.Println("<schemaType> can be: " + pgdiff.SchemaTypes)
 	os.Exit(2)
 }
 

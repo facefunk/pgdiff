@@ -32,6 +32,27 @@ const (
 	GrantAttributeSchemaType    = "GRANT_ATTRIBUTE"
 )
 
+var schemaTypes = []string{
+	AllSchemaType,
+	SchemataSchemaType,
+	RoleSchemaType,
+	SequenceSchemaType,
+	TableSchemaType,
+	ColumnSchemaType,
+	TableColumnSchemaType,
+	IndexSchemaType,
+	ViewSchemaType,
+	MatViewSchemaType,
+	ForeignKeySchemaType,
+	FunctionSchemaType,
+	TriggerSchemaType,
+	OwnerSchemaType,
+	GrantRelationshipSchemaType,
+	GrantAttributeSchemaType,
+}
+
+var SchemaTypes = strings.Join(schemaTypes, ", ")
+
 // AllSchemaTypes is all the schema types necessary to generate full output. This is actually all the schema types minus
 // TableColumnSchemaType which is a more restrictive output of ColumnSchemaType.
 var AllSchemaTypes = []string{
