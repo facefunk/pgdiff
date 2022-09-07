@@ -9,84 +9,86 @@ import (
 
 	"github.com/facefunk/pgdiff"
 	"github.com/facefunk/pgdiff/db"
-	"gopkg.in/yaml.v3"
-
-	_ "github.com/lib/pq"
 	flag "github.com/ogier/pflag"
 )
+
+const (
+	versionFormat = `pgdiff - version %s
+Copyright (c) 2017 Jon Carlson.
+All rights reserved.
+Use of this source code is governed by the MIT license
+that can be found here: http://opensource.org/licenses/MIT
+`
+	usageFormat = `pgdiff - version %s
+usage: %s [<options>] <schemaType>
+Compares the schema between two PostgreSQL databases and generates alter statements 
+that can be *manually* run against the second database.
+
+Options:
+%s
+<schemaType> can be: %s
+`
+)
+
+var commandLineModules []pgdiff.CommandLineModule
 
 /*
  * Do the main logic
  */
 func main() {
-	var helpPtr = flag.BoolP("help", "?", false, "print help information")
-	var versionPtr = flag.BoolP("version", "V", false, "print version information")
-	var configPtr = flag.StringP("config", "c", "", "load configuration from YAML file")
+
+	initModule := &pgdiff.InitModule{}
+	sourceModule := &pgdiff.SourceModule{}
+	DBModule := &db.Module{}
+
+	commandLineModules = []pgdiff.CommandLineModule{
+		initModule,
+		sourceModule,
+		DBModule,
+	}
+
+	configModules := []pgdiff.ConfigModule{
+		sourceModule,
+		DBModule,
+	}
 
 	modules := []pgdiff.Module{
-		&db.Module{},
+		DBModule,
 	}
-	for _, mod := range modules {
+
+	for _, mod := range commandLineModules {
 		mod.RegisterFlags(flag.CommandLine)
 	}
 
 	flag.Usage = usage
 	flag.Parse()
 
-	if *helpPtr {
+	if initModule.Help {
 		usage()
 	}
 
-	if *versionPtr {
-		fmt.Fprintf(os.Stderr, "%s - version %s\n", os.Args[0], pgdiff.Version)
-		fmt.Fprintln(os.Stderr, "Copyright (c) 2017 Jon Carlson.  All rights reserved.")
-		fmt.Fprintln(os.Stderr, "Use of this source code is governed by the MIT license")
-		fmt.Fprintln(os.Stderr, "that can be found here: http://opensource.org/licenses/MIT")
+	if initModule.Version {
+		fmt.Fprintf(os.Stderr, versionFormat, pgdiff.Version)
 		os.Exit(1)
 	}
 
 	// Remaining args:
 	args := flag.Args()
 	if len(args) == 0 {
-		log.Fatal("The required first argument is SchemaType: " + pgdiff.SchemaTypes)
+		log.Fatal("Error: the required first argument is SchemaType: " + pgdiff.SchemaTypes)
 	}
 
-	if *configPtr != "" {
-		file, err := os.Open(*configPtr)
-		check("opening config file", err)
-		decoder := yaml.NewDecoder(file)
-		for _, mod := range modules {
-			err = decoder.Decode(mod)
-			check("decoding config file", err)
-		}
+	if initModule.ConfigFile != "" {
+		err := pgdiff.ConfigureModulesFromFile(configModules, initModule.ConfigFile)
+		check("configuring Modules from config file", err)
 	} else {
-		for _, mod := range modules {
+		for _, mod := range configModules {
 			mod.ConfigureFromFlags()
 		}
 	}
 
-	facs := make([]pgdiff.SchemaFactory, 3)
-	dbSchemas := make([]string, 3)
-confNum:
-	for i := 1; i <= 2; i++ {
-		for _, mod := range modules {
-			conf := mod.Config(i)
-			if conf.Valid() {
-				dbSchemas[i] = conf.DBSchema()
-				fac, err := mod.Factory(conf)
-				check("initialising SchemaFactory", err)
-				facs[i] = fac
-				continue confNum
-			}
-		}
-		log.Fatal("Error: two properly configured datasources required.")
-	}
-
-	// Verify schemas
-	schemas := dbSchemas[1] + dbSchemas[2]
-	if schemas != "**" && strings.Contains(schemas, "*") {
-		log.Fatal("If one schema is an asterisk, both must be.")
-	}
+	facs, err := pgdiff.FactoriesFromModules(modules, sourceModule)
+	check("generating SchemaFactories", err)
 
 	strs := pgdiff.CompareByFactoriesAndArgs(facs[1], facs[2], args)
 	for _, s := range strs {
@@ -95,30 +97,27 @@ confNum:
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "%s - version %s\n", os.Args[0], pgdiff.Version)
-	fmt.Fprintf(os.Stderr, "usage: %s [<options>] <schemaType> \n", os.Args[0])
-	fmt.Fprintln(os.Stderr, `
-Compares the schema between two PostgreSQL databases and generates alter statements 
-that can be *manually* run against the second database.
-
-Options:`)
-	fmt.Println(alignedFlagDefaults())
-	fmt.Println("<schemaType> can be: " + pgdiff.SchemaTypes)
+	fmt.Fprintf(os.Stderr, usageFormat, pgdiff.Version, os.Args[0], alignedFlagDefaults(), pgdiff.SchemaTypes)
 	os.Exit(2)
 }
 
 func check(msg string, err error) {
 	if err != nil {
-		log.Fatal("Error "+msg, err)
+		log.Fatal("Error: ", msg, ": ", err)
 	}
 }
 
 func alignedFlagDefaults() string {
-	var buf bytes.Buffer
-	flag.CommandLine.SetOutput(&buf)
-	flag.PrintDefaults()
-	flag.CommandLine.SetOutput(os.Stderr)
-	def := buf.String()
+	var def string
+	for _, mod := range commandLineModules {
+		flagSet := flag.NewFlagSet("defaults", flag.PanicOnError)
+		var buf bytes.Buffer
+		flagSet.SetOutput(&buf)
+		mod.RegisterFlags(flagSet)
+		flagSet.PrintDefaults()
+		def += mod.Name() + "\n" + buf.String()
+	}
+
 	lines := strings.Split(def, "\n")
 	max := 0
 	l := len(lines) - 1
@@ -132,7 +131,11 @@ func alignedFlagDefaults() string {
 	}
 	max += 1
 	for i := 0; i < l; i++ {
-		lines[i] = lines[i][:pos[i]] + strings.Repeat(" ", max-pos[i]) + lines[i][pos[i]:]
+		if pos[i] == -1 {
+			lines[i] = "\n  " + lines[i] + ":"
+			continue
+		}
+		lines[i] = "  " + lines[i][:pos[i]] + strings.Repeat(" ", max-pos[i]) + lines[i][pos[i]:]
 	}
 	return strings.Join(lines, "\n")
 }

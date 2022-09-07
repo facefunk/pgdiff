@@ -9,8 +9,6 @@ package pgdiff
 import (
 	"fmt"
 	"strings"
-
-	flag "github.com/ogier/pflag"
 )
 
 const (
@@ -101,21 +99,6 @@ type (
 		GrantRelationship() (*GrantRelationshipSchema, error)
 		GrantAttribute() (*GrantAttributeSchema, error)
 		Identify(num int) *Notice
-	}
-
-	// Module is a super-factory. Each Module instance decodes a different type of config from either command line
-	// arguments or config file and produces SchemaFactory instances based on that config.
-	Module interface {
-		RegisterFlags(flagSet *flag.FlagSet)
-		ConfigureFromFlags()
-		Config(i int) Config
-		Factory(conf Config) (SchemaFactory, error)
-	}
-
-	// Config is a decoded configuration instance.
-	Config interface {
-		Valid() bool
-		DBSchema() string
 	}
 
 	// Stringer simply returns a string. Allows a slice of Stringer to be returned from a function, which can then be

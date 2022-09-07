@@ -1,10 +1,12 @@
-db1:
+source1:
   user: u1
-  pass: asdf
+source2:
+  user: u1
+db1:
   name: db1
+  pass: asdf
   options: sslmode=disable
 db2:
-  user: u1
-  pass: asdf
   name: db2
+  pass: asdf
   options: sslmode=disable

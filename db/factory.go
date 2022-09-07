@@ -9,6 +9,7 @@ import (
 
 	"github.com/facefunk/pgdiff"
 	"github.com/joncrlsn/pgutil"
+	_ "github.com/lib/pq"
 )
 
 type SchemaFactory struct {

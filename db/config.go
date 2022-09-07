@@ -7,63 +7,85 @@ import (
 )
 
 const (
-	defaultHost   = "localhost"
-	defaultPort   = 5432
-	defaultSchema = "*"
+	defaultHost = "localhost"
+	defaultPort = 5432
 )
 
 type (
 	Module struct {
-		dBIP1 dBInfoPtrs
-		dBIP2 dBInfoPtrs
+		vals1 configVals
+		vals2 configVals
 		conf1 Config
 		conf2 Config
 	}
 	Config struct {
 		pgutil.DbInfo `yaml:",inline"`
 	}
-	dBInfoPtrs struct {
-		Name    *string
-		Host    *string
-		Port    *int
-		User    *string
-		Pass    *string
-		Schema  *string
-		Options *string
+	configVals struct {
+		Name    string
+		Pass    string
+		Host    string
+		Port    int
+		Options string
 	}
 )
 
-func (m *Module) RegisterFlags(flagSet *flag.FlagSet) {
-	m.dBIP1.User = flagSet.StringP("user1", "U", "", "first postgres user")
-	m.dBIP1.Pass = flagSet.StringP("password1", "W", "", "first database password")
-	m.dBIP1.Host = flagSet.StringP("host1", "H", defaultHost, "first database host")
-	m.dBIP1.Port = flagSet.IntP("port1", "P", defaultPort, "first port")
-	m.dBIP1.Name = flagSet.StringP("dbname1", "D", "", "first database name")
-	m.dBIP1.Schema = flagSet.StringP("schema1", "S", defaultSchema, "first schema name or * for all schemas")
-	m.dBIP1.Options = flagSet.StringP("options1", "O", "", "first database options (eg. sslmode=disable)")
+func (m *Module) Name() string {
+	return "Database source"
+}
 
-	m.dBIP2.User = flagSet.StringP("user2", "u", "", "second postgres user")
-	m.dBIP2.Pass = flagSet.StringP("password2", "w", "", "second database password")
-	m.dBIP2.Host = flagSet.StringP("host2", "h", defaultHost, "second postgres host")
-	m.dBIP2.Port = flagSet.IntP("port2", "p", defaultPort, "second port")
-	m.dBIP2.Name = flagSet.StringP("dbname2", "d", "", "second database name")
-	m.dBIP2.Schema = flagSet.StringP("schema2", "s", defaultSchema, "second schema name or * for all schemas")
-	m.dBIP2.Options = flagSet.StringP("options2", "o", "", "second database options (eg. sslmode=disable)")
+func (m *Module) RegisterFlags(flagSet *flag.FlagSet) {
+	flagSet.StringVarP(&m.vals1.Name, "dbname1", "D", "", "first database name")
+	flagSet.StringVarP(&m.vals1.Pass, "password1", "W", "", "first database password")
+	flagSet.StringVarP(&m.vals1.Host, "host1", "H", defaultHost, "first database host")
+	flagSet.IntVarP(&m.vals1.Port, "port1", "P", defaultPort, "first port")
+	flagSet.StringVarP(&m.vals1.Options, "options1", "O", "", "first database options (eg. sslmode=disable)")
+
+	flagSet.StringVarP(&m.vals2.Name, "dbname2", "d", "", "second database name")
+	flagSet.StringVarP(&m.vals2.Pass, "password2", "w", "", "second database password")
+	flagSet.StringVarP(&m.vals2.Host, "host2", "h", defaultHost, "second postgres host")
+	flagSet.IntVarP(&m.vals2.Port, "port2", "p", defaultPort, "second port")
+	flagSet.StringVarP(&m.vals2.Options, "options2", "o", "", "second database options (eg. sslmode=disable)")
 }
 
 func (m *Module) ConfigureFromFlags() {
-	setDBInfo(&m.conf1.DbInfo, &m.dBIP1)
-	setDBInfo(&m.conf2.DbInfo, &m.dBIP2)
+	setConf(&m.conf1, &m.vals1)
+	setConf(&m.conf2, &m.vals2)
 }
 
-func setDBInfo(dbi *pgutil.DbInfo, dbip *dBInfoPtrs) {
-	dbi.DbUser = *dbip.User
-	dbi.DbPass = *dbip.Pass
-	dbi.DbHost = *dbip.Host
-	dbi.DbPort = int32(*dbip.Port)
-	dbi.DbName = *dbip.Name
-	dbi.DbSchema = *dbip.Schema
-	dbi.DbOptions = *dbip.Options
+func setConf(conf *Config, vals *configVals) {
+	conf.DbName = vals.Name
+	conf.DbPass = vals.Pass
+	conf.DbHost = vals.Host
+	conf.DbPort = int32(vals.Port)
+	conf.DbOptions = vals.Options
+}
+
+func (m *Module) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	conf := struct {
+		DB1 *configVals
+		DB2 *configVals
+	}{
+		defaultConfigVals(),
+		defaultConfigVals(),
+	}
+	err := unmarshal(&conf)
+	if err != nil {
+		return err
+	}
+	setConf(&m.conf1, conf.DB1)
+	setConf(&m.conf2, conf.DB2)
+	return nil
+}
+
+func defaultConfigVals() *configVals {
+	return &configVals{
+		Name:    "",
+		Pass:    "",
+		Host:    defaultHost,
+		Port:    defaultPort,
+		Options: "",
+	}
 }
 
 func (m *Module) Config(i int) pgdiff.Config {
@@ -89,39 +111,11 @@ func (m *Module) Factory(conf pgdiff.Config) (pgdiff.SchemaFactory, error) {
 	return NewSchemaFactory(conn, &c.DbInfo), nil
 }
 
-func (m *Module) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	conf := struct {
-		DB1 *dBInfoPtrs
-		DB2 *dBInfoPtrs
-	}{
-		defaultDBInfoPtrs(),
-		defaultDBInfoPtrs(),
-	}
-	err := unmarshal(&conf)
-	if err != nil {
-		return err
-	}
-	setDBInfo(&m.conf1.DbInfo, conf.DB1)
-	setDBInfo(&m.conf2.DbInfo, conf.DB2)
-	return nil
-}
-
-func defaultDBInfoPtrs() *dBInfoPtrs {
-	name := ""
-	host := defaultHost
-	port := defaultPort
-	user := ""
-	pass := ""
-	schema := defaultSchema
-	options := ""
-	return &dBInfoPtrs{&name, &host, &port, &user, &pass, &schema, &options}
+func (c *Config) SetSourceConfig(conf *pgdiff.SourceConfig) {
+	c.DbUser = conf.User
+	c.DbSchema = conf.Schema
 }
 
 func (c *Config) Valid() bool {
-	return c.DbInfo.DbUser != "" && c.DbInfo.DbPass != "" && c.DbInfo.DbHost != "" && c.DbInfo.DbPort != 0 &&
-		c.DbInfo.DbName != "" && c.DbInfo.DbSchema != ""
-}
-
-func (c *Config) DBSchema() string {
-	return c.DbSchema
+	return c.DbUser != "" && c.DbPass != "" && c.DbHost != "" && c.DbPort != 0 && c.DbName != "" && c.DbSchema != ""
 }
