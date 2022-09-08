@@ -1,9 +1,9 @@
 //
-// Copyright (c) 2014 Jon Carlson.  All rights reserved.
-// Use of this source code is governed by an MIT-style
+// Copyright (c) 2014 Jon Carlson.
+// Copyright (c) 2022 Facefunk.
+// All rights reserved.
+// Use of this source code is governed by the MIT
 // license that can be found in the LICENSE file.
-//
-// grant.go provides functions and structures that are common to grant-relationships and grant-attributes
 //
 
 package pgdiff
