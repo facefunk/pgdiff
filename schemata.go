@@ -69,26 +69,25 @@ func (c *SchemataSchema) NextRow() bool {
 func (c *SchemataSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*SchemataSchema)
 	if !ok {
-		err := Error(fmt.Sprint("compare(obj) needs a SchemataSchema instance", c2))
-		return +999, &err
+		return +999, NewError(fmt.Sprint("compare(obj) needs a SchemataSchema instance", c2))
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("schema_name"), c.other.get("schema_name"))
-	//strs = append(strs, Line(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("schema_name"), c.other.get("schema_name"))))
+	//strs = append(strs, NewLine(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("schema_name"), c.other.get("schema_name"))))
 	return val, nil
 }
 
 // Add returns SQL to add the schemata
 func (c SchemataSchema) Add() []Stringer {
 	// CREATE SCHEMA schema_name [ AUTHORIZATION user_name
-	return []Stringer{Line(fmt.Sprintf("CREATE SCHEMA %s AUTHORIZATION %s;", c.get("schema_name"), c.get("schema_owner")))}
+	return []Stringer{NewLine(fmt.Sprintf("CREATE SCHEMA %s AUTHORIZATION %s;", c.get("schema_name"), c.get("schema_owner")))}
 }
 
 // Drop returns SQL to drop the schemata
 func (c SchemataSchema) Drop() []Stringer {
 	// DROP SCHEMA [ IF EXISTS ] name [, ...] [ CASCADE | RESTRICT ]
-	return []Stringer{Line(fmt.Sprintf("DROP SCHEMA IF EXISTS %s;", c.get("schema_name")))}
+	return []Stringer{NewLine(fmt.Sprintf("DROP SCHEMA IF EXISTS %s;", c.get("schema_name")))}
 }
 
 // Change handles the case where the dbSchema name matches, but the details do not

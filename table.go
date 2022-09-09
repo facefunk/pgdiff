@@ -70,13 +70,12 @@ func (c *TableSchema) NextRow() bool {
 func (c *TableSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*TableSchema)
 	if !ok {
-		err := Error(fmt.Sprint("compare(obj) needs a TableSchema instance", c2))
-		return +999, &err
+		return +999, NewError(fmt.Sprint("compare(obj) needs a TableSchema instance", c2))
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
-	//strs = append(strs, Line(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("table_name"), c.other.get("table_name"))))
+	//strs = append(strs, NewLine(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("table_name"), c.other.get("table_name"))))
 	return val, nil
 }
 
@@ -86,12 +85,12 @@ func (c TableSchema) Add() []Stringer {
 	if schema == "*" {
 		schema = c.get("table_schema")
 	}
-	return []Stringer{Line(fmt.Sprintf("CREATE %s %s.%s();", c.get("table_type"), schema, c.get("table_name")))}
+	return []Stringer{NewLine(fmt.Sprintf("CREATE %s %s.%s();", c.get("table_type"), schema, c.get("table_name")))}
 }
 
 // Drop returns SQL to drop the table or view
 func (c TableSchema) Drop() []Stringer {
-	return []Stringer{Line(fmt.Sprintf("DROP %s %s.%s;", c.get("table_type"), c.get("table_schema"), c.get("table_name")))}
+	return []Stringer{NewLine(fmt.Sprintf("DROP %s %s.%s;", c.get("table_type"), c.get("table_schema"), c.get("table_name")))}
 }
 
 // Change handles the case where the table and column match, but the details do not

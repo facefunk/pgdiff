@@ -71,13 +71,12 @@ func (c *FunctionSchema) NextRow() bool {
 func (c *FunctionSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*FunctionSchema)
 	if !ok {
-		err := Error(fmt.Sprint("compare(obj) needs a FunctionSchema instance", c2))
-		return +999, &err
+		return +999, NewError(fmt.Sprint("compare(obj) needs a FunctionSchema instance", c2))
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
-	//strs = append(strs, Line(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("function_name"), c.other.get("function_name"))))
+	//strs = append(strs, NewLine(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("function_name"), c.other.get("function_name"))))
 	return val, nil
 }
 
@@ -95,19 +94,19 @@ func (c *FunctionSchema) Add() []Stringer {
 	}
 
 	return []Stringer{
-		Notice("-- STATEMENT-BEGIN"),
-		Line(functionDef + ";"),
-		Notice("-- STATEMENT-END"),
+		NewNotice("-- STATEMENT-BEGIN"),
+		NewLine(functionDef + ";"),
+		NewNotice("-- STATEMENT-END"),
 	}
 }
 
 // Drop returns SQL to drop the function
 func (c FunctionSchema) Drop() []Stringer {
 	return []Stringer{
-		Notice("-- Note that CASCADE in the statement below will also drop any triggers depending on this function."),
-		Notice("-- Also, if there are two functions with this name, you will want to add arguments to identify the correct one to drop."),
-		Notice("-- (See http://www.postgresql.org/docs/9.4/interactive/sql-dropfunction.html) "),
-		Line(fmt.Sprintf("DROP FUNCTION %s.%s CASCADE;", c.get("schema_name"), c.get("function_name"))),
+		NewNotice("-- Note that CASCADE in the statement below will also drop any triggers depending on this function."),
+		NewNotice("-- Also, if there are two functions with this name, you will want to add arguments to identify the correct one to drop."),
+		NewNotice("-- (See http://www.postgresql.org/docs/9.4/interactive/sql-dropfunction.html) "),
+		NewLine(fmt.Sprintf("DROP FUNCTION %s.%s CASCADE;", c.get("schema_name"), c.get("function_name"))),
 	}
 }
 
@@ -130,9 +129,9 @@ func (c FunctionSchema) Change() []Stringer {
 
 	// The definition column has everything needed to rebuild the function
 	return []Stringer{
-		Notice("-- This function is different so we'll recreate it:"),
-		Notice("-- STATEMENT-BEGIN"),
-		Line(fmt.Sprintf("%s;", functionDef)),
-		Notice("-- STATEMENT-END"),
+		NewNotice("-- This function is different so we'll recreate it:"),
+		NewNotice("-- STATEMENT-BEGIN"),
+		NewLine(fmt.Sprintf("%s;", functionDef)),
+		NewNotice("-- STATEMENT-END"),
 	}
 }

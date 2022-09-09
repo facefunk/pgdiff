@@ -95,8 +95,7 @@ func (c *GrantRelationshipSchema) NextRow() bool {
 func (c *GrantRelationshipSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*GrantRelationshipSchema)
 	if !ok {
-		err := Error(fmt.Sprint("compare needs a GrantRelationshipSchema instance", c2))
-		return +999, &err
+		return +999, NewError(fmt.Sprint("compare needs a GrantRelationshipSchema instance", c2))
 	}
 	c.other = c2
 
@@ -120,7 +119,7 @@ func (c *GrantRelationshipSchema) Add() []Stringer {
 	var strs []Stringer
 	role, grants, errs := parseGrants(c.get("relationship_acl"))
 	strs = append(strs, errs...)
-	strs = append(strs, Line(fmt.Sprintf("GRANT %s ON %s.%s TO %s; -- Add", strings.Join(grants, ", "), schema, c.get("relationship_name"), role)))
+	strs = append(strs, NewLine(fmt.Sprintf("GRANT %s ON %s.%s TO %s; -- Add", strings.Join(grants, ", "), schema, c.get("relationship_name"), role)))
 	return strs
 }
 
@@ -129,7 +128,7 @@ func (c *GrantRelationshipSchema) Drop() []Stringer {
 	var strs []Stringer
 	role, grants, errs := parseGrants(c.get("relationship_acl"))
 	strs = append(strs, errs...)
-	strs = append(strs, Line(fmt.Sprintf("REVOKE %s ON %s.%s FROM %s; -- Drop", strings.Join(grants, ", "), c.get("schema_name"), c.get("relationship_name"), role)))
+	strs = append(strs, NewLine(fmt.Sprintf("REVOKE %s ON %s.%s FROM %s; -- Drop", strings.Join(grants, ", "), c.get("schema_name"), c.get("relationship_name"), role)))
 	return strs
 }
 
@@ -151,7 +150,7 @@ func (c *GrantRelationshipSchema) Change() []Stringer {
 		}
 	}
 	if len(grantList) > 0 {
-		strs = append(strs, Line(fmt.Sprintf("GRANT %s ON %s.%s TO %s; -- Change", strings.Join(grantList, ", "), c.other.get("schema_name"), c.get("relationship_name"), role)))
+		strs = append(strs, NewLine(fmt.Sprintf("GRANT %s ON %s.%s TO %s; -- Change", strings.Join(grantList, ", "), c.other.get("schema_name"), c.get("relationship_name"), role)))
 	}
 
 	// Find grants in the second db that are not in the first
@@ -163,10 +162,10 @@ func (c *GrantRelationshipSchema) Change() []Stringer {
 		}
 	}
 	if len(revokeList) > 0 {
-		strs = append(strs, Line(fmt.Sprintf("REVOKE %s ON %s.%s FROM %s; -- Change", strings.Join(revokeList, ", "), c.other.get("schema_name"), c.get("relationship_name"), role)))
+		strs = append(strs, NewLine(fmt.Sprintf("REVOKE %s ON %s.%s FROM %s; -- Change", strings.Join(revokeList, ", "), c.other.get("schema_name"), c.get("relationship_name"), role)))
 	}
 
-	//	strs = append(strs, Line(fmt.Sprintf("--1 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.get("relationship_name"), c.get("relationship_acl"), c.get("column_name"), c.get("column_acl"))))
-	//	strs = append(strs, Line(fmt.Sprintf("--2 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.other.get("relationship_name"), c.other.get("relationship_acl"), c.other.get("column_name"), c.other.get("column_acl"))))
+	//	strs = append(strs, NewLine(fmt.Sprintf("--1 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.get("relationship_name"), c.get("relationship_acl"), c.get("column_name"), c.get("column_acl"))))
+	//	strs = append(strs, NewLine(fmt.Sprintf("--2 rel:%s, relAcl:%s, col:%s, colAcl:%s\n", c.other.get("relationship_name"), c.other.get("relationship_acl"), c.other.get("column_name"), c.other.get("column_acl"))))
 	return strs
 }

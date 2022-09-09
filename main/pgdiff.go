@@ -47,16 +47,19 @@ var commandLineModules []pgdiff.CommandLineModule
 func main() {
 
 	initModule := &pgdiff.InitModule{}
+	globalModule := &pgdiff.GlobalModule{}
 	sourceModule := &pgdiff.SourceModule{}
 	DBModule := &db.Module{}
 
 	commandLineModules = []pgdiff.CommandLineModule{
 		initModule,
+		globalModule,
 		sourceModule,
 		DBModule,
 	}
 
 	configModules := []pgdiff.ConfigModule{
+		globalModule,
 		sourceModule,
 		DBModule,
 	}
@@ -100,9 +103,8 @@ func main() {
 	check("generating SchemaFactories", err)
 
 	strs := pgdiff.CompareByFactoriesAndArgs(facs[1], facs[2], args)
-	for _, s := range strs {
-		fmt.Println(s.String())
-	}
+	output := globalModule.Config().Output
+	pgdiff.PrintStringers(strs, output, os.Stdout, os.Stderr)
 }
 
 func usage() {

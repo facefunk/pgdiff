@@ -102,33 +102,7 @@ type (
 		GrantAttribute() (*GrantAttributeSchema, error)
 		Identify(num int) *Notice
 	}
-
-	// Stringer simply returns a string. Allows a slice of Stringer to be returned from a function, which can then be
-	// type-switched to filter the output.
-	Stringer interface {
-		String() string
-	}
-
-	Line   string
-	Notice string
-	Error  string
 )
-
-func (s Line) String() string {
-	return string(s)
-}
-
-func (s Notice) String() string {
-	return string(s)
-}
-
-func (s Error) String() string {
-	return string(s)
-}
-
-func (s Error) Error() string {
-	return string(s)
-}
 
 // SchemaByType returns a Schema from factory by schemaType.
 func SchemaByType(factory SchemaFactory, schemaType string) (Schema, error) {
@@ -164,8 +138,7 @@ func SchemaByType(factory SchemaFactory, schemaType string) (Schema, error) {
 	case GrantAttributeSchemaType:
 		return factory.GrantAttribute()
 	}
-	err := Error(fmt.Sprintf("unsupported schema type: %s", schemaType))
-	return nil, &err
+	return nil, NewError(fmt.Sprintf("unsupported schema type: %s", schemaType))
 }
 
 // CompareByFactories runs a single comparison of schemaType between sources represented by fac1 and fac2.
@@ -173,11 +146,11 @@ func CompareByFactories(fac1 SchemaFactory, fac2 SchemaFactory, schemaType strin
 	var strs []Stringer
 	schema1, err := SchemaByType(fac1, schemaType)
 	if err != nil {
-		strs = append(strs, Error(err.Error()))
+		strs = append(strs, NewError(err.Error()))
 	}
 	schema2, err := SchemaByType(fac2, schemaType)
 	if err != nil {
-		strs = append(strs, Error(err.Error()))
+		strs = append(strs, NewError(err.Error()))
 	}
 	diff := Diff(schema1, schema2)
 	strs = append(strs, diff...)
@@ -189,10 +162,10 @@ func CompareByFactories(fac1 SchemaFactory, fac2 SchemaFactory, schemaType strin
 func CompareByFactoriesAndArgs(fac1 SchemaFactory, fac2 SchemaFactory, args []string) []Stringer {
 	schemaType := strings.ToUpper(strings.Join(args, " "))
 	strs := []Stringer{
-		Notice("-- schemaType: " + schemaType),
+		NewNotice("-- schemaType: " + schemaType),
 		fac1.Identify(1),
 		fac2.Identify(2),
-		Notice("-- Run the following SQL against db2:"),
+		NewNotice("-- Run the following SQL against db2:"),
 	}
 	for _, arg := range args {
 		if arg == AllSchemaType {

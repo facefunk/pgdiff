@@ -70,8 +70,7 @@ func (c *SequenceSchema) NextRow() bool {
 func (c *SequenceSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*SequenceSchema)
 	if !ok {
-		err := Error(fmt.Sprint("compare(obj) needs a SequenceSchema instance", c2))
-		return +999, &err
+		return +999, NewError(fmt.Sprint("compare(obj) needs a SequenceSchema instance", c2))
 	}
 	c.other = c2
 
@@ -85,12 +84,12 @@ func (c *SequenceSchema) Add() []Stringer {
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
-	return []Stringer{Line(fmt.Sprintf("CREATE SEQUENCE %s.%s INCREMENT %s MINVALUE %s MAXVALUE %s START %s;", schema, c.get("sequence_name"), c.get("increment"), c.get("minimum_value"), c.get("maximum_value"), c.get("start_value")))}
+	return []Stringer{NewLine(fmt.Sprintf("CREATE SEQUENCE %s.%s INCREMENT %s MINVALUE %s MAXVALUE %s START %s;", schema, c.get("sequence_name"), c.get("increment"), c.get("minimum_value"), c.get("maximum_value"), c.get("start_value")))}
 }
 
 // Drop returns SQL to drop the sequence
 func (c SequenceSchema) Drop() []Stringer {
-	return []Stringer{Line(fmt.Sprintf("DROP SEQUENCE %s.%s;", c.get("schema_name"), c.get("sequence_name")))}
+	return []Stringer{NewLine(fmt.Sprintf("DROP SEQUENCE %s.%s;", c.get("schema_name"), c.get("sequence_name")))}
 }
 
 // Change doesn't do anything right now.

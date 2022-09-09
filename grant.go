@@ -69,7 +69,7 @@ func parseGrants(acl string) (string, []string, []Stringer) {
 		if len(permWord) > 0 {
 			permWords = append(permWords, permWord)
 		} else {
-			errs = append(errs, Error(fmt.Sprintf("-- Error, found permission character we haven't coded for: %s", c)))
+			errs = append(errs, NewError(fmt.Sprintf("-- Error, found permission character we haven't coded for: %s", c)))
 		}
 	}
 	permWords.Sort()

@@ -71,8 +71,7 @@ func (c *TriggerSchema) NextRow() bool {
 func (c *TriggerSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*TriggerSchema)
 	if !ok {
-		err := Error(fmt.Sprint("compare(obj) needs a TriggerSchema instance", c2))
-		return +999, &err
+		return +999, NewError(fmt.Sprint("compare(obj) needs a TriggerSchema instance", c2))
 	}
 	c.other = c2
 
@@ -95,12 +94,12 @@ func (c TriggerSchema) Add() []Stringer {
 			-1)
 	}
 
-	return []Stringer{Line(fmt.Sprintf("%s;", triggerDef))}
+	return []Stringer{NewLine(fmt.Sprintf("%s;", triggerDef))}
 }
 
 // Drop returns SQL to drop the trigger
 func (c TriggerSchema) Drop() []Stringer {
-	return []Stringer{Line(fmt.Sprintf("DROP TRIGGER %s ON %s.%s;", c.get("trigger_name"), c.get("schema_name"), c.get("table_name")))}
+	return []Stringer{NewLine(fmt.Sprintf("DROP TRIGGER %s ON %s.%s;", c.get("trigger_name"), c.get("schema_name"), c.get("table_name")))}
 }
 
 // Change handles the case where the trigger names match, but the definition does not
@@ -124,10 +123,10 @@ func (c *TriggerSchema) Change() []Stringer {
 
 	// The trigger_def column has everything needed to rebuild the function
 	return []Stringer{
-		Notice("-- This function looks different so we'll drop and recreate it:"),
-		Line(fmt.Sprintf("DROP TRIGGER %s ON %s.%s;", c.get("trigger_name"), schemaName, c.get("table_name"))),
-		Notice("-- STATEMENT-BEGIN"),
-		Line(fmt.Sprintf("%s;", triggerDef)),
-		Notice("-- STATEMENT-END"),
+		NewNotice("-- This function looks different so we'll drop and recreate it:"),
+		NewLine(fmt.Sprintf("DROP TRIGGER %s ON %s.%s;", c.get("trigger_name"), schemaName, c.get("table_name"))),
+		NewNotice("-- STATEMENT-BEGIN"),
+		NewLine(fmt.Sprintf("%s;", triggerDef)),
+		NewNotice("-- STATEMENT-END"),
 	}
 }

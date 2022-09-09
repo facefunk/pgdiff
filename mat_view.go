@@ -69,29 +69,28 @@ func (c *MatViewSchema) NextRow() bool {
 func (c *MatViewSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*MatViewSchema)
 	if !ok {
-		err := Error(fmt.Sprint("compare(obj) needs a MatViewSchema instance", c2))
-		return +999, &err
+		return +999, NewError(fmt.Sprint("compare(obj) needs a MatViewSchema instance", c2))
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("matviewname"), c.other.get("matviewname"))
-	//strs = append(strs, Line(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("matviewname"), c.other.get("matviewname"))))
+	//strs = append(strs, NewLine(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("matviewname"), c.other.get("matviewname"))))
 	return val, nil
 }
 
 // Add returns SQL to create the matview
 func (c MatViewSchema) Add() []Stringer {
 	return []Stringer{
-		Line(fmt.Sprintf("CREATE MATERIALIZED VIEW %s AS %s", c.get("matviewname"), c.get("definition"))),
-		Line(""),
-		Line(c.get("indexdef")),
-		Line(""),
+		NewLine(fmt.Sprintf("CREATE MATERIALIZED VIEW %s AS %s", c.get("matviewname"), c.get("definition"))),
+		NewLine(""),
+		NewLine(c.get("indexdef")),
+		NewLine(""),
 	}
 }
 
 // Drop returns SQL to drop the matview
 func (c MatViewSchema) Drop() []Stringer {
-	return []Stringer{Line(fmt.Sprintf("DROP MATERIALIZED VIEW %s;", c.get("matviewname")))}
+	return []Stringer{NewLine(fmt.Sprintf("DROP MATERIALIZED VIEW %s;", c.get("matviewname")))}
 }
 
 // Change handles the case where the names match, but the definition does not
@@ -100,9 +99,9 @@ func (c MatViewSchema) Change() []Stringer {
 
 	if c.get("definition") != c.other.get("definition") {
 		strs = append(strs,
-			Line(fmt.Sprintf("DROP MATERIALIZED VIEW %s;", c.get("matviewname"))),
-			Line(fmt.Sprintf("CREATE MATERIALIZED VIEW %s AS %s", c.get("matviewname"), c.get("definition"))),
-			Line(c.get("indexdef")),
+			NewLine(fmt.Sprintf("DROP MATERIALIZED VIEW %s;", c.get("matviewname"))),
+			NewLine(fmt.Sprintf("CREATE MATERIALIZED VIEW %s AS %s", c.get("matviewname"), c.get("definition"))),
+			NewLine(c.get("indexdef")),
 		)
 	}
 	return strs

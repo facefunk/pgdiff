@@ -84,12 +84,11 @@ func (c *ForeignKeySchema) NextRow() bool {
 func (c *ForeignKeySchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*ForeignKeySchema)
 	if !ok {
-		err := Error(fmt.Sprint("compare(obj) needs a ForeignKeySchema instance", c2))
-		return +999, &err
+		return +999, NewError(fmt.Sprint("compare(obj) needs a ForeignKeySchema instance", c2))
 	}
 	c.other = c2
 
-	//strs = append(strs, Line(fmt.Sprintf("Comparing %s with %s", c.get("table_name"), c.other.get("table_name"))))
+	//strs = append(strs, NewLine(fmt.Sprintf("Comparing %s with %s", c.get("table_name"), c.other.get("table_name"))))
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	if val != 0 {
 		return val, nil
@@ -105,12 +104,12 @@ func (c *ForeignKeySchema) Add() []Stringer {
 	if schema == "*" {
 		schema = c.get("schema_name")
 	}
-	return []Stringer{Line(fmt.Sprintf("ALTER TABLE %s.%s ADD CONSTRAINT %s %s;", schema, c.get("table_name"), c.get("fk_name"), c.get("constraint_def")))}
+	return []Stringer{NewLine(fmt.Sprintf("ALTER TABLE %s.%s ADD CONSTRAINT %s %s;", schema, c.get("table_name"), c.get("fk_name"), c.get("constraint_def")))}
 }
 
 // Drop returns SQL to drop the foreign key
 func (c ForeignKeySchema) Drop() []Stringer {
-	return []Stringer{Line(fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s; -- %s", c.get("schema_name"), c.get("table_name"), c.get("fk_name"), c.get("constraint_def")))}
+	return []Stringer{NewLine(fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s; -- %s", c.get("schema_name"), c.get("table_name"), c.get("fk_name"), c.get("constraint_def")))}
 }
 
 // Change handles the case where the table and foreign key name, but the details do not

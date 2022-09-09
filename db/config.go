@@ -110,11 +110,11 @@ func (m *Module) Config(i int) pgdiff.Config {
 func (m *Module) Factory(conf pgdiff.Config) (pgdiff.SchemaFactory, error) {
 	c, ok := conf.(*Config)
 	if !ok {
-		return nil, pgdiff.Error("Factory requires db.Config instance")
+		return nil, pgdiff.NewError("Factory requires db.Config instance")
 	}
 	conn, err := c.DbInfo.Open()
 	if err != nil {
-		return nil, pgdiff.Error("opening database: " + err.Error())
+		return nil, pgdiff.NewError("opening database: " + err.Error())
 	}
 	return NewSchemaFactory(conn, &c.DbInfo), nil
 }

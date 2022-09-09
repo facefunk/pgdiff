@@ -12,6 +12,7 @@ import (
 
 var (
 	_ CommandLineModule = (*InitModule)(nil)
+	_ ConfigModule      = (*GlobalModule)(nil)
 	_ ConfigModule      = (*SourceModule)(nil)
 	_ Config            = (*SourceConfig)(nil)
 )

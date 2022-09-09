@@ -69,24 +69,23 @@ func (c *ViewSchema) NextRow() bool {
 func (c *ViewSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*ViewSchema)
 	if !ok {
-		err := Error(fmt.Sprint("compare(obj) needs a ViewSchema instance", c2))
-		return +999, &err
+		return +999, NewError(fmt.Sprint("compare(obj) needs a ViewSchema instance", c2))
 	}
 	c.other = c2
 
 	val := misc.CompareStrings(c.get("viewname"), c.other.get("viewname"))
-	//strs = append(strs, Line(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("viewname"), c.other.get("viewname"))))
+	//strs = append(strs, NewLine(fmt.Sprintf("-- Compared %v: %s with %s \n", val, c.get("viewname"), c.other.get("viewname"))))
 	return val, nil
 }
 
 // Add returns SQL to create the view
 func (c ViewSchema) Add() []Stringer {
-	return []Stringer{Line(fmt.Sprintf("CREATE VIEW %s AS %s", c.get("viewname"), c.get("definition")))}
+	return []Stringer{NewLine(fmt.Sprintf("CREATE VIEW %s AS %s", c.get("viewname"), c.get("definition")))}
 }
 
 // Drop returns SQL to drop the view
 func (c ViewSchema) Drop() []Stringer {
-	return []Stringer{Line(fmt.Sprintf("DROP VIEW %s;", c.get("viewname")))}
+	return []Stringer{NewLine(fmt.Sprintf("DROP VIEW %s;", c.get("viewname")))}
 }
 
 // Change handles the case where the names match, but the definition does not
@@ -96,7 +95,7 @@ func (c ViewSchema) Change() []Stringer {
 	}
 
 	return []Stringer{
-		Line(fmt.Sprintf("DROP VIEW %s;", c.get("viewname"))),
-		Line(fmt.Sprintf("CREATE VIEW %s AS %s", c.get("viewname"), c.get("definition"))),
+		NewLine(fmt.Sprintf("DROP VIEW %s;", c.get("viewname"))),
+		NewLine(fmt.Sprintf("CREATE VIEW %s AS %s", c.get("viewname"), c.get("definition"))),
 	}
 }

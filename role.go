@@ -80,8 +80,7 @@ func (c *RoleSchema) NextRow() bool {
 func (c *RoleSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*RoleSchema)
 	if !ok {
-		err := Error(fmt.Sprint("change needs a RoleSchema instance", c2))
-		return +999, &err
+		return +999, NewError(fmt.Sprint("change needs a RoleSchema instance", c2))
 	}
 	c.other = c2
 
@@ -156,13 +155,13 @@ func (c RoleSchema) Add() []Stringer {
 		options += fmt.Sprintf(" VALID UNTIL '%s'", c.get("rolvaliduntil"))
 	}
 
-	strs = append(strs, Line(fmt.Sprintf("CREATE ROLE %s%s;", c.get("rolname"), options)))
+	strs = append(strs, NewLine(fmt.Sprintf("CREATE ROLE %s%s;", c.get("rolname"), options)))
 	return strs
 }
 
 // Drop generates SQL to drop the role
 func (c RoleSchema) Drop() []Stringer {
-	return []Stringer{Line(fmt.Sprintf("DROP ROLE %s;", c.get("rolname")))}
+	return []Stringer{NewLine(fmt.Sprintf("DROP ROLE %s;", c.get("rolname")))}
 }
 
 // Change handles the case where the role name matches, but the details do not
@@ -240,11 +239,11 @@ func (c RoleSchema) Change() []Stringer {
 
 	// Only alter if we have changes
 	if len(options) > 0 {
-		strs = append(strs, Line(fmt.Sprintf("ALTER ROLE %s%s;", c.get("rolname"), options)))
+		strs = append(strs, NewLine(fmt.Sprintf("ALTER ROLE %s%s;", c.get("rolname"), options)))
 	}
 
 	if c.get("memberof") != c.other.get("memberof") {
-		strs = append(strs, Line(fmt.Sprintln(c.get("memberof"), "!=", c.other.get("memberof"))))
+		strs = append(strs, NewLine(fmt.Sprintln(c.get("memberof"), "!=", c.other.get("memberof"))))
 
 		// Remove the curly brackets
 		memberof1 := curlyBracketRegex.ReplaceAllString(c.get("memberof"), "")
@@ -257,13 +256,13 @@ func (c RoleSchema) Change() []Stringer {
 		// TODO: Define INHERIT or not
 		for _, mo1 := range membersof1 {
 			if !misc.ContainsString(membersof2, mo1) {
-				strs = append(strs, Line(fmt.Sprintf("GRANT %s TO %s;", mo1, c.get("rolename"))))
+				strs = append(strs, NewLine(fmt.Sprintf("GRANT %s TO %s;", mo1, c.get("rolename"))))
 			}
 		}
 
 		for _, mo2 := range membersof2 {
 			if !misc.ContainsString(membersof1, mo2) {
-				strs = append(strs, Line(fmt.Sprintf("REVOKE %s FROM %s;", mo2, c.get("rolename"))))
+				strs = append(strs, NewLine(fmt.Sprintf("REVOKE %s FROM %s;", mo2, c.get("rolename"))))
 			}
 		}
 

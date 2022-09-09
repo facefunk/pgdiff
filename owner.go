@@ -80,8 +80,7 @@ func (c *OwnerSchema) NextRow() bool {
 func (c *OwnerSchema) Compare(obj Schema) (int, *Error) {
 	c2, ok := obj.(*OwnerSchema)
 	if !ok {
-		err := Error(fmt.Sprint("compare needs a OwnerSchema instance", c2))
-		return +999, &err
+		return +999, NewError(fmt.Sprint("compare needs a OwnerSchema instance", c2))
 	}
 	c.other = c2
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
@@ -90,18 +89,18 @@ func (c *OwnerSchema) Compare(obj Schema) (int, *Error) {
 
 // Add generates SQL to add the table/view owner
 func (c OwnerSchema) Add() []Stringer {
-	return []Stringer{Notice(fmt.Sprintf("-- Notice!, db2 has no %s named %s.  First, run pgdiff with the %s option.", c.get("type"), c.get("relationship_name"), c.get("type")))}
+	return []Stringer{NewNotice(fmt.Sprintf("-- Notice!, db2 has no %s named %s.  First, run pgdiff with the %s option.", c.get("type"), c.get("relationship_name"), c.get("type")))}
 }
 
 // Drop generates SQL to drop the owner
 func (c OwnerSchema) Drop() []Stringer {
-	return []Stringer{Notice(fmt.Sprintf("-- Notice!, db2 has a %s that db1 does not: %s.   First, run pgdiff with the %s option.", c.get("type"), c.get("relationship_name"), c.get("type")))}
+	return []Stringer{NewNotice(fmt.Sprintf("-- Notice!, db2 has a %s that db1 does not: %s.   First, run pgdiff with the %s option.", c.get("type"), c.get("relationship_name"), c.get("type")))}
 }
 
 // Change handles the case where the relationship name matches, but the owner does not
 func (c OwnerSchema) Change() []Stringer {
 	if c.get("owner") != c.other.get("owner") {
-		return []Stringer{Line(fmt.Sprintf("ALTER %s %s.%s OWNER TO %s;", c.get("type"), c.other.get("schema_name"), c.get("relationship_name"), c.get("owner")))}
+		return []Stringer{NewLine(fmt.Sprintf("ALTER %s %s.%s OWNER TO %s;", c.get("type"), c.other.get("schema_name"), c.get("relationship_name"), c.get("owner")))}
 	}
 	return nil
 }
