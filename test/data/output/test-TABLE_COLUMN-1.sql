@@ -1,0 +1,3 @@
+ALTER TABLE s2.table10 ALTER COLUMN id TYPE bigint;
+ALTER TABLE s2.table11 DROP COLUMN IF EXISTS id;
+ALTER TABLE s2.table9 ADD COLUMN name character varying(50);

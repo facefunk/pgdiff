@@ -3,4 +3,4 @@
 
 package pgdiff
 
-const Version = "1.0-fcfnk.b342bf5"
+const Version = "1.0-fcfnk.6e608cc"

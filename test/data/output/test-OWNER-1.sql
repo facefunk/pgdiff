@@ -1,0 +1,2 @@
+ALTER TABLE s2.table1 OWNER TO u2;
+ALTER TABLE s2.table2 OWNER TO u1;

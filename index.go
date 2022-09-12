@@ -88,10 +88,10 @@ func (c *IndexSchema) Compare(obj Schema) (int, *Error) {
 	}
 	c.other = c2
 	var err *Error
-	if len(c.get("table_name")) == 0 || len(c.get("index_name")) == 0 {
+	/*if len(c.get("table_name")) == 0 || len(c.get("index_name")) == 0 {
 		err = NewError(fmt.Sprintf("--Comparing (table_name and/or index_name is empty): %v\n--           %v",
 			c.getRow(), c.other.getRow()))
-	}
+	}*/
 
 	val := misc.CompareStrings(c.get("compare_name"), c.other.get("compare_name"))
 	return val, err

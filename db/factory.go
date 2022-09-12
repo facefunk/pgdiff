@@ -291,3 +291,7 @@ func (f *SchemaFactory) View() (*pgdiff.ViewSchema, error) {
 func (f *SchemaFactory) Identify(num int) *pgdiff.Notice {
 	return pgdiff.NewNotice(fmt.Sprintf("-- db%d: %v", num, *f.dbInfo))
 }
+
+func (f *SchemaFactory) Close() error {
+	return f.conn.Close()
+}

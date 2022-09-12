@@ -1,0 +1,2 @@
+DROP TABLE s2.table11;
+CREATE TABLE s2.table9();

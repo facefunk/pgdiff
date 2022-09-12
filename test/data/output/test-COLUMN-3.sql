@@ -1,0 +1,5 @@
+ALTER TABLE s4.table12 DROP COLUMN IF EXISTS bigids;
+ALTER TABLE s4.table12 ADD COLUMN ids int4[];
+ALTER TABLE s4.table12 ADD COLUMN bigids int8[];
+ALTER TABLE s4.table12 DROP COLUMN IF EXISTS something;
+ALTER TABLE s4.table12 ADD COLUMN something text[];

@@ -11,6 +11,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -105,6 +106,15 @@ func main() {
 	strs := pgdiff.CompareByFactoriesAndArgs(facs[1], facs[2], args)
 	output := globalModule.Config().Output
 	pgdiff.PrintStringers(strs, output, os.Stdout, os.Stderr)
+
+	for _, fac := range facs {
+		if closer, ok := fac.(io.Closer); ok {
+			err = closer.Close()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: closing factory: %s\n", err)
+			}
+		}
+	}
 }
 
 func usage() {
