@@ -6,7 +6,7 @@ package db
 import (
 	"testing"
 
-	"github.com/facefunk/pgdiff"
+	"github.com/prudnitskiy/pgdiff"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 )

@@ -1,6 +1,6 @@
 //
 // Copyright (c) 2017 Jon Carlson.
-// Copyright (c) 2022 Facefunk.
+// Copyright (c) 2022 prudnitskiy.
 // All rights reserved.
 // Use of this source code is governed by the MIT
 // license that can be found in the LICENSE file.
@@ -16,15 +16,16 @@ import (
 	"os"
 	"strings"
 
-	"github.com/facefunk/pgdiff"
-	"github.com/facefunk/pgdiff/db"
+	"github.com/prudnitskiy/pgdiff"
+	"github.com/prudnitskiy/pgdiff/db"
 	flag "github.com/ogier/pflag"
 )
 
 const (
 	versionFormat = `pgdiff - version %s
 Copyright (c) 2017 Jon Carlson.
-Copyright (c) 2022 Facefunk.
+Copyright (c) 2022 facefunk.
+Copyright (c) 2022 prudnitskiy.
 All rights reserved.
 Use of this source code is governed by the MIT license
 that can be found here: http://opensource.org/licenses/MIT

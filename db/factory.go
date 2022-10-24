@@ -15,9 +15,9 @@ import (
 	"sort"
 	"text/template"
 
-	"github.com/facefunk/pgdiff"
+	"github.com/prudnitskiy/pgdiff"
 	"github.com/joncrlsn/pgutil"
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx"
 )
 
 type SchemaFactory struct {

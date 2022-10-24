@@ -10,8 +10,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/facefunk/pgdiff"
-	"github.com/facefunk/pgdiff/db"
+	"github.com/prudnitskiy/pgdiff"
+	"github.com/prudnitskiy/pgdiff/db"
 	"github.com/joncrlsn/pgutil"
 	"github.com/stretchr/testify/assert"
 )

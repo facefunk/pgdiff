@@ -9,7 +9,7 @@
 package db
 
 import (
-	"github.com/facefunk/pgdiff"
+	"github.com/prudnitskiy/pgdiff"
 	"github.com/joncrlsn/pgutil"
 	flag "github.com/ogier/pflag"
 )
